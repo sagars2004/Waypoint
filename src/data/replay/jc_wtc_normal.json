@@ -1,0 +1,31 @@
+{
+  "feedId": "snapshot-jc-wtc-normal-004",
+  "source": "REPLAY_FIXTURE",
+  "agency": "MULTI_AGENCY",
+  "fetchedAt": "2026-10-15T08:15:00.000Z",
+  "scenario": "normal",
+  "realtimeDelayMinutes": {
+    "PATH_NWK_WTC": 0,
+    "PATH_JSQ_33": 0,
+    "FERRY_PAULUS_BPC": 0
+  },
+  "alerts": [],
+  "reliabilityOtp": {
+    "PATH_NWK_WTC": 96,
+    "FERRY_PAULUS_BPC": 99
+  },
+  "weather": {
+    "temperatureF": 63,
+    "condition": "Clear",
+    "isSevere": false,
+    "windSpeedMph": 5
+  },
+  "trafficTunnels": {
+    "hollandTunnel": {
+      "crossing": "Holland Tunnel",
+      "travelTimeMinutes": 18,
+      "delayVsTypicalMinutes": 0,
+      "tollAmount": 17.63
+    }
+  }
+}

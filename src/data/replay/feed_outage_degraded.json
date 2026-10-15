@@ -1,0 +1,33 @@
+{
+  "feedId": "snapshot-feed-outage-005",
+  "source": "REPLAY_FIXTURE",
+  "agency": "MULTI_AGENCY",
+  "fetchedAt": "2026-10-15T07:45:00.000Z",
+  "scenario": "outage",
+  "realtimeDelayMinutes": {
+    "PATH_HOB_33": 0,
+    "PATH_JSQ_33": 0,
+    "FERRY_HOB_MID": 0
+  },
+  "alerts": [
+    {
+      "id": "alt-feed-njt-down",
+      "agency": "System",
+      "line": "NJ Transit Realtime Feed",
+      "severity": "moderate",
+      "title": "Agency Feed Unreachable",
+      "description": "NJ Transit GTFS-RT feed connection timed out. Rail and bus delays are estimated from scheduled timetables with reduced confidence.",
+      "timestamp": "12 mins ago"
+    }
+  ],
+  "reliabilityOtp": {
+    "PATH_HOB_33": 94,
+    "FERRY_HOB_MID": 98
+  },
+  "weather": {
+    "temperatureF": 61,
+    "condition": "Cloudy",
+    "isSevere": false,
+    "windSpeedMph": 8
+  }
+}

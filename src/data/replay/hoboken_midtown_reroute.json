@@ -1,0 +1,49 @@
+{
+  "feedId": "snapshot-hoboken-reroute-003",
+  "source": "REPLAY_FIXTURE",
+  "agency": "MULTI_AGENCY",
+  "fetchedAt": "2026-10-15T08:08:00.000Z",
+  "scenario": "reroute",
+  "realtimeDelayMinutes": {
+    "PATH_HOB_33": 999,
+    "PATH_JSQ_33": 999,
+    "PATH_NWK_WTC": 5,
+    "NJT_MORRIS_ESSEX": 3,
+    "NJT_NEC_NYP": 4,
+    "NJT_BUS_126": 6,
+    "FERRY_HOB_MID": 0
+  },
+  "alerts": [
+    {
+      "id": "alt-susp-hob-33",
+      "agency": "PATH",
+      "line": "PATH (HOB-33)",
+      "severity": "severe",
+      "title": "Service Suspended Hoboken to 33rd",
+      "description": "Third-rail power emergency at 9th St. PATH service between Hoboken and 33rd is suspended. Cross-honoring in effect on NY Waterway and NJ Transit 126 bus.",
+      "timestamp": "3 mins ago",
+      "expectedDuration": "Indefinite / morning rush"
+    }
+  ],
+  "reliabilityOtp": {
+    "PATH_HOB_33": 15,
+    "NJT_MORRIS_ESSEX": 86,
+    "NJT_NEC_NYP": 85,
+    "NJT_BUS_126": 78,
+    "FERRY_HOB_MID": 98
+  },
+  "weather": {
+    "temperatureF": 56,
+    "condition": "Light Rain",
+    "isSevere": false,
+    "windSpeedMph": 14
+  },
+  "trafficTunnels": {
+    "lincolnTunnel": {
+      "crossing": "Lincoln Tunnel",
+      "travelTimeMinutes": 38,
+      "delayVsTypicalMinutes": 14,
+      "tollAmount": 17.63
+    }
+  }
+}

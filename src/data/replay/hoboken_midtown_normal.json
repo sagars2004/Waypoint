@@ -1,0 +1,44 @@
+{
+  "feedId": "snapshot-hoboken-normal-001",
+  "source": "REPLAY_FIXTURE",
+  "agency": "MULTI_AGENCY",
+  "fetchedAt": "2026-10-15T08:00:00.000Z",
+  "scenario": "normal",
+  "realtimeDelayMinutes": {
+    "PATH_HOB_33": 0,
+    "PATH_JSQ_33": 0,
+    "PATH_NWK_WTC": 0,
+    "NJT_MORRIS_ESSEX": 0,
+    "NJT_NEC_NYP": 0,
+    "NJT_BUS_126": 2,
+    "FERRY_HOB_MID": 0
+  },
+  "alerts": [],
+  "reliabilityOtp": {
+    "PATH_HOB_33": 94,
+    "NJT_MORRIS_ESSEX": 89,
+    "NJT_NEC_NYP": 88,
+    "NJT_BUS_126": 82,
+    "FERRY_HOB_MID": 98
+  },
+  "weather": {
+    "temperatureF": 64,
+    "condition": "Partly Cloudy",
+    "isSevere": false,
+    "windSpeedMph": 7
+  },
+  "trafficTunnels": {
+    "lincolnTunnel": {
+      "crossing": "Lincoln Tunnel",
+      "travelTimeMinutes": 24,
+      "delayVsTypicalMinutes": 2,
+      "tollAmount": 17.63
+    },
+    "hollandTunnel": {
+      "crossing": "Holland Tunnel",
+      "travelTimeMinutes": 20,
+      "delayVsTypicalMinutes": 1,
+      "tollAmount": 17.63
+    }
+  }
+}

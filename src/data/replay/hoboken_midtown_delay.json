@@ -1,0 +1,49 @@
+{
+  "feedId": "snapshot-hoboken-delay-002",
+  "source": "REPLAY_FIXTURE",
+  "agency": "MULTI_AGENCY",
+  "fetchedAt": "2026-10-15T08:05:00.000Z",
+  "scenario": "delay",
+  "realtimeDelayMinutes": {
+    "PATH_HOB_33": 9,
+    "PATH_JSQ_33": 11,
+    "PATH_NWK_WTC": 2,
+    "NJT_MORRIS_ESSEX": 1,
+    "NJT_NEC_NYP": 2,
+    "NJT_BUS_126": 4,
+    "FERRY_HOB_MID": 0
+  },
+  "alerts": [
+    {
+      "id": "alt-sig-christopher",
+      "agency": "PATH",
+      "line": "PATH (HOB-33 / JSQ-33)",
+      "severity": "moderate",
+      "title": "Signal Malfunction at Christopher St",
+      "description": "Signal diagnostics ongoing at Christopher St. Trains holding at stations with 8-10 minute congestion delays.",
+      "timestamp": "4 mins ago",
+      "expectedDuration": "30-45 mins"
+    }
+  ],
+  "reliabilityOtp": {
+    "PATH_HOB_33": 72,
+    "NJT_MORRIS_ESSEX": 89,
+    "NJT_NEC_NYP": 88,
+    "NJT_BUS_126": 82,
+    "FERRY_HOB_MID": 98
+  },
+  "weather": {
+    "temperatureF": 58,
+    "condition": "Overcast",
+    "isSevere": false,
+    "windSpeedMph": 11
+  },
+  "trafficTunnels": {
+    "lincolnTunnel": {
+      "crossing": "Lincoln Tunnel",
+      "travelTimeMinutes": 32,
+      "delayVsTypicalMinutes": 8,
+      "tollAmount": 17.63
+    }
+  }
+}
