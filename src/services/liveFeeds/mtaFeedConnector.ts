@@ -53,7 +53,7 @@ export class MTAFeedConnector {
       }
 
       const buffer = await res.arrayBuffer();
-      const feed = (GtfsRealtimeBindings as any).transit_realtime.FeedMessage.decode(
+      const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
         new Uint8Array(buffer)
       );
 

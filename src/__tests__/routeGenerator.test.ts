@@ -3,7 +3,6 @@ import { RouteGenerator } from '@/services/routeGenerator';
 import { RiskScorer } from '@/services/riskScorer';
 import { feedManager } from '@/services/feedManager';
 import { SAMPLE_PROFILES } from '@/data/mockCorridors';
-import { VerdictResponseSchema } from '@/types/schemas';
 
 describe('RouteGenerator & RiskScorer (Phase 3)', () => {
   const profile = SAMPLE_PROFILES[0]; // Hoboken to Midtown
@@ -49,7 +48,7 @@ describe('RouteGenerator & RiskScorer (Phase 3)', () => {
   it('promotes next best alternative to Primary when primary line is suspended (Reroute scenario)', () => {
     const rerouteSnapshot = feedManager.getSnapshot('reroute');
     const candidates = RouteGenerator.generateCandidates(profile, rerouteSnapshot);
-    const { primaryRoute, planBRoute } = RouteGenerator.selectPrimaryAndPlanB(candidates);
+    const { primaryRoute } = RouteGenerator.selectPrimaryAndPlanB(candidates);
 
     // Primary route must NOT be suspended
     expect(primaryRoute.legs.every((l) => l.delayMinutes < 999)).toBe(true);

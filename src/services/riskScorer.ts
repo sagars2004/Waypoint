@@ -3,7 +3,6 @@ import {
   VerdictState, 
   ConfidenceLevel, 
   FeedSnapshot, 
-  CommuteProfile, 
   FeedSourceStatus 
 } from '@/types/schemas';
 
@@ -134,7 +133,7 @@ export class RiskScorer {
     const [hours, minutes] = arriveBy.split(':').map(Number);
     const totalLeadMinutes = durationMinutes + bufferMinutes;
 
-    let totalArriveMinutes = hours * 60 + minutes;
+    const totalArriveMinutes = hours * 60 + minutes;
     let leaveMinutes = totalArriveMinutes - totalLeadMinutes;
 
     if (leaveMinutes < 0) {

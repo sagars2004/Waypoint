@@ -177,7 +177,6 @@ export function MapboxMap({
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
     if (!token) {
-      setMapError('no-token');
       return;
     }
     if (!containerRef.current) return;
@@ -273,7 +272,7 @@ export function MapboxMap({
   }, [updateRoutes]);
 
   // Error/fallback state — show SVG if no token or map failed
-  if (mapError === 'no-token') {
+  if (!process.env.NEXT_PUBLIC_MAPBOX_TOKEN || mapError === 'no-token') {
     return <FallbackMap primaryRoute={primaryRoute} planBRoute={planBRoute} selectedRoute={selectedRoute} originName={originName} destinationName={destinationName} verdictState={verdictState} dimensions={dimensions} containerRef={containerRef} />;
   }
 

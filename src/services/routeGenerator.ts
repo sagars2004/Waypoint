@@ -1,9 +1,7 @@
 import { 
   CommuteProfile, 
   RouteCandidate, 
-  RouteLeg, 
   FeedSnapshot, 
-  TransitMode 
 } from '@/types/schemas';
 import { RiskScorer } from './riskScorer';
 
@@ -15,8 +13,6 @@ export class RouteGenerator {
     profile: CommuteProfile,
     snapshot: FeedSnapshot
   ): RouteCandidate[] {
-    const isHoboken = profile.origin.name.toLowerCase().includes('hoboken') ||
-                      profile.id.includes('hoboken');
     const isJC = profile.origin.name.toLowerCase().includes('exchange') ||
                  profile.origin.name.toLowerCase().includes('jersey city') ||
                  profile.id.includes('jc');

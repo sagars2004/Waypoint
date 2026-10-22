@@ -1,14 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Send, MessageCircle, Navigation, User, Database } from 'lucide-react';
-import { ChatMessage, Verdict } from '@/types/commute';
+import { ChatMessage, CommuteProfile, Verdict } from '@/types/commute';
 
 interface ChatPanelProps {
   verdict: Verdict;
+  profile: CommuteProfile;
+  scenario: 'normal' | 'delay' | 'reroute';
 }
 
-export function ChatPanel({ verdict }: ChatPanelProps) {
+export function ChatPanel({ verdict, profile, scenario }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'm-1',
@@ -23,6 +25,12 @@ export function ChatPanel({ verdict }: ChatPanelProps) {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const messageSequence = useRef(0);
+
+  const nextMessageId = (sender: 'user' | 'agent') => {
+    messageSequence.current += 1;
+    return `${sender[0]}-${messageSequence.current}`;
+  };
 
   const samplePrompts = [
     'Can I grab coffee and still make it?',
@@ -35,7 +43,7 @@ export function ChatPanel({ verdict }: ChatPanelProps) {
     if (!query.trim()) return;
 
     const userMsg: ChatMessage = {
-      id: `u-${Date.now()}`,
+      id: nextMessageId('user'),
       sender: 'user',
       text: query,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -56,13 +64,15 @@ export function ChatPanel({ verdict }: ChatPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: query,
+          profile,
+          scenario,
           history,
         }),
       });
 
       const data = await res.json();
       const agentMsg: ChatMessage = {
-        id: `a-${Date.now()}`,
+        id: nextMessageId('agent'),
         sender: 'agent',
         text: data.reply || 'Live telemetry retrieved.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -73,7 +83,7 @@ export function ChatPanel({ verdict }: ChatPanelProps) {
     } catch (err) {
       console.warn('Chat request error, using fallback:', err);
       const fallbackMsg: ChatMessage = {
-        id: `a-${Date.now()}`,
+        id: nextMessageId('agent'),
         sender: 'agent',
         text: `Based on live feed telemetry, ${verdict.primaryRoute.name} is recommended for departure at ${verdict.leaveByTime} AM with an allocated safety buffer of ${verdict.primaryRoute.bufferMinutes} minutes.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),

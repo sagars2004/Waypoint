@@ -2,17 +2,25 @@ import { NextResponse } from 'next/server';
 import { nebiusClient } from '@/services/ai/nebiusClient';
 import { feedManager } from '@/services/feedManager';
 import { RouteGenerator } from '@/services/routeGenerator';
-import { SAMPLE_PROFILES } from '@/data/mockCorridors';
+import { CommuteProfileSchema } from '@/types/schemas';
 
 export async function POST(request: Request) {
   try {
-    const { message, scenario = 'normal', history = [] } = await request.json();
+    const { message, scenario = 'normal', history = [], profile: rawProfile } = await request.json();
     if (!message || typeof message !== 'string') {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
+    const profileResult = CommuteProfileSchema.safeParse(rawProfile);
+    if (!profileResult.success) {
+      return NextResponse.json(
+        { error: 'A valid commute profile is required' },
+        { status: 400 }
+      );
+    }
+
     const snapshot = feedManager.getSnapshot(scenario);
-    const profile = SAMPLE_PROFILES[0];
+    const profile = profileResult.data;
     const candidates = RouteGenerator.generateCandidates(profile, snapshot);
     const primary = candidates[0];
     const planB = candidates[1];
@@ -32,11 +40,20 @@ export async function POST(request: Request) {
           { source: 'Target Arrival', metric: `${profile.arriveByTime} AM` },
         ];
       } else if (lower.includes('ferry')) {
-        reply = `The NY Waterway Ferry at 14th St departs at 08:20 AM and takes 12 mins across the Hudson. It has 98% historical reliability with zero tunnel congestion, but costs $9.00 vs $2.75 for PATH. In current conditions, PATH is faster, but Ferry is active as Plan B.`;
-        citations = [
-          { source: 'NY Waterway Telemetry', metric: 'Next ferry 08:20 AM' },
-          { source: 'Fare Difference', metric: '$9.00 vs $2.75' },
-        ];
+        const ferry = candidates.find((candidate) =>
+          candidate.legs.some((leg) => leg.mode === 'ferry')
+        );
+        if (ferry) {
+          reply = `${ferry.name} departs at ${ferry.departureTime} AM and takes ${ferry.totalDurationMinutes} minutes. It costs $${ferry.estimatedCost.toFixed(2)} and has ${ferry.reliabilityRate}% historical reliability.`;
+          citations = [
+            { source: 'Route Schedule', metric: `${ferry.departureTime} AM departure` },
+            { source: 'Route Cost', metric: `$${ferry.estimatedCost.toFixed(2)}` },
+            { source: 'Reliability OTP', metric: `${ferry.reliabilityRate}% on-time` },
+          ];
+        } else {
+          reply = `There is no ferry option in your current commute profile and replay scenario.`;
+          citations = [{ source: 'Route Options', metric: 'No ferry candidate available' }];
+        }
       } else {
         reply = `Based on live feed telemetry, ${primary.name} is scheduled to leave at ${primary.departureTime} AM with a ${primary.bufferMinutes}-minute buffer. Historical reliability on this line is ${primary.reliabilityRate}%.`;
         citations = [

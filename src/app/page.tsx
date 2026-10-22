@@ -24,7 +24,7 @@ export default function Home() {
       const saved = localStorage.getItem('waypoint_profile');
       if (saved) {
         const parsed = JSON.parse(saved);
-        setCurrentProfile(parsed);
+        window.requestAnimationFrame(() => setCurrentProfile(parsed));
       }
     } catch (e) {
       console.warn('Could not read saved profile', e);
@@ -45,7 +45,7 @@ export default function Home() {
 
   const [verdict, setVerdict] = useState<Verdict>(SCENARIO_VERDICTS.normal);
   const [selectedRoute, setSelectedRoute] = useState<RouteCandidate>(SCENARIO_VERDICTS.normal.primaryRoute);
-  const [isLoadingVerdict, setIsLoadingVerdict] = useState(false);
+  const [, setIsLoadingVerdict] = useState(false);
 
   // Fetch fresh deterministic verdict from API when profile or scenario changes
   useEffect(() => {
@@ -157,7 +157,11 @@ export default function Home() {
 
           {/* Right Column (5 cols): Chat Interface */}
           <div className="lg:col-span-5 h-[760px]">
-            <ChatPanel verdict={verdict} />
+            <ChatPanel
+              verdict={verdict}
+              profile={currentProfile}
+              scenario={activeScenario}
+            />
           </div>
         </div>
       </main>

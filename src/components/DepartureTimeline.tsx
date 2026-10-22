@@ -85,7 +85,7 @@ export function DepartureTimeline({
 }: DepartureTimelineProps) {
   // Live countdown state
   const [secondsUntilDeparture, setSecondsUntilDeparture] = useState<number>(0);
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
   useEffect(() => {
     const departureDate = parseTimeToday(selectedRoute.departureTime);
@@ -217,7 +217,13 @@ export function DepartureTimeline({
         {/* Live time + urgency badge */}
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           <div className="text-xs font-mono text-zinc-500 tabular-nums">
-            {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            {currentTime
+              ? currentTime.toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                })
+              : '—'}
           </div>
           {urgent && !passed && (
             <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 border border-amber-200 text-[10px] font-semibold text-amber-700">
