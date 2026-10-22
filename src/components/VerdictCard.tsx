@@ -204,9 +204,9 @@ export function VerdictCard({ verdict, onSelectRoute }: VerdictCardProps) {
       {/* Active Alerts Banner if any */}
       {verdict.alerts.length > 0 && (
         <div className="space-y-2">
-          {verdict.alerts.map((alert) => (
+          {verdict.alerts.map((alert, idx) => (
             <div
-              key={alert.id}
+              key={`${alert.id || 'alert'}-${idx}`}
               className="flex items-start gap-2.5 p-3 rounded-xl border border-amber-200 bg-amber-50/70 text-xs text-amber-900"
             >
               <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />

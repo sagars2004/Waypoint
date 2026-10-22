@@ -46,7 +46,8 @@ export class FeedManager {
 
   public getSnapshot(scenarioKey?: ReplayScenarioKey): FeedSnapshot {
     const key = scenarioKey || this.currentScenario;
-    return this.snapshots[key] || this.snapshots.normal;
+    const base = this.snapshots[key] || this.snapshots.normal;
+    return structuredClone(base);
   }
 
   /**

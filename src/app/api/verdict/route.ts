@@ -4,11 +4,18 @@ import { RouteGenerator } from '@/services/routeGenerator';
 import { RiskScorer } from '@/services/riskScorer';
 import { CommuteProfile, CommuteProfileSchema, VerdictResponseSchema } from '@/types/schemas';
 import { SAMPLE_PROFILES } from '@/data/mockCorridors';
+import { leadAgent } from '@/services/ai/leadAgent';
+import { tavilyAlertsSubagent } from '@/services/ai/tavilyAlertsSubagent';
+import { tendemEscalationService } from '@/services/ai/tendemEscalation';
+import { fetchLiveWeather } from '@/services/liveFeeds/weatherConnector';
+import { njTransitConnector } from '@/services/liveFeeds/njTransitConnector';
+import { nycDotTrafficConnector } from '@/services/liveFeeds/nycDotTrafficConnector';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const scenario: ReplayScenarioKey = body.scenario || 'normal';
+    const isLiveMode = Boolean(body.liveMode || process.env.USE_LIVE_FEEDS === 'true');
 
     // Parse or fallback to sample profile
     let profile: CommuteProfile = SAMPLE_PROFILES[0];
@@ -16,47 +23,104 @@ export async function POST(request: Request) {
       profile = CommuteProfileSchema.parse(body.profile);
     }
 
-    // 1. Ingest feed snapshot
+    // 1. Ingest feed snapshot (or overlay live feeds if in live mode)
     const snapshot = feedManager.getSnapshot(scenario);
+
+    // Overlay live weather (free Open-Meteo)
+    const liveWeather = await fetchLiveWeather();
+    snapshot.weather = liveWeather;
+
+    // Overlay live NYC DOT traffic speeds (free keyless NYC OpenData)
+    const liveCrossings = await nycDotTrafficConnector.fetchCrossingSpeeds();
+    if (liveCrossings) {
+      snapshot.trafficTunnels = {
+        lincolnTunnel: {
+          crossing: 'Lincoln Tunnel',
+          travelTimeMinutes: liveCrossings.lincolnTunnel.travelTimeMinutes,
+          delayVsTypicalMinutes: liveCrossings.lincolnTunnel.delayVsTypicalMinutes,
+          tollAmount: liveCrossings.lincolnTunnel.tollAmount,
+        },
+        hollandTunnel: {
+          crossing: 'Holland Tunnel',
+          travelTimeMinutes: liveCrossings.hollandTunnel.travelTimeMinutes,
+          delayVsTypicalMinutes: liveCrossings.hollandTunnel.delayVsTypicalMinutes,
+          tollAmount: liveCrossings.hollandTunnel.tollAmount,
+        },
+      };
+    }
+
+    // Overlay live NJ Transit data if key exists and live mode enabled
+    const liveNJT = await njTransitConnector.fetchLiveStatus();
+    if (liveNJT && liveNJT.railDelays) {
+      Object.assign(snapshot.realtimeDelayMinutes, liveNJT.railDelays);
+      if (liveNJT.alerts.length > 0) {
+        snapshot.alerts.push(...liveNJT.alerts);
+      }
+    }
+
+    // Search live web incidents through Tavily if API key is configured
+    if (process.env.TAVILY_API_KEY) {
+      const tavilyAlerts = await tavilyAlertsSubagent.searchAgencyIncidents(
+        `${profile.origin.name} ${profile.destination.name} transit delays`
+      );
+      if (tavilyAlerts.length > 0) {
+        snapshot.alerts.push(...tavilyAlerts);
+      }
+    }
+
+    // Deduplicate alerts by ID and title to guarantee unique keys and eliminate duplicates
+    const seenAlertKeys = new Set<string>();
+    snapshot.alerts = snapshot.alerts.filter((a) => {
+      const key = `${a.id}-${a.title}`;
+      if (seenAlertKeys.has(key)) return false;
+      seenAlertKeys.add(key);
+      return true;
+    });
+
     const feedStatuses = feedManager.evaluateSources(snapshot);
 
     // 2. Generate and score candidates deterministically
     const candidates = RouteGenerator.generateCandidates(profile, snapshot);
     const { primaryRoute, planBRoute } = RouteGenerator.selectPrimaryAndPlanB(candidates);
 
-    // 3. Evaluate verdict state and confidence
-    const state = RiskScorer.evaluateVerdictState(primaryRoute, candidates, snapshot);
-    const confidence = RiskScorer.evaluateConfidence(feedStatuses, primaryRoute);
+    // 3. Evaluate baseline verdict state and confidence
+    const baseState = RiskScorer.evaluateVerdictState(primaryRoute, candidates, snapshot);
+    const baseConfidence = RiskScorer.evaluateConfidence(feedStatuses, primaryRoute);
 
     // 4. Calculate countdown minutes from reference time or now
     const countdownMinutes = RiskScorer.computeCountdown(primaryRoute.departureTime, '08:00');
 
-    // 5. Synthesize deterministic reason (pre-LLM rule synthesis)
-    // Include all active alerts from the snapshot so riders see alerts causing reroutes
-    const activeAlerts = snapshot.alerts;
+    // 5. Lead Agent (Nemotron on Nebius Token Factory) evaluates rationale
+    const agentResult = await leadAgent.evaluateVerdict({
+      origin: profile.origin.name,
+      destination: profile.destination.name,
+      arriveByTime: profile.arriveByTime,
+      candidates,
+      alerts: snapshot.alerts,
+      feedStatuses,
+      baseVerdictState: baseState,
+      baseConfidence: baseConfidence,
+    });
 
-    let reason = '';
-    if (state === 'reroute') {
-      reason = `Primary line suspended due to power/track incident. Reroute immediately to ${primaryRoute.name} departing at ${primaryRoute.departureTime} AM.`;
-    } else if (state === 'tight') {
-      const delayedLeg = primaryRoute.legs.find((l) => l.delayMinutes > 0);
-      const delay = delayedLeg?.delayMinutes || 9;
-      reason = `${delayedLeg?.line || 'Primary route'} has ${delay}-min signal delays. Leave by ${primaryRoute.departureTime} AM to keep an arrival margin.`;
-    } else {
-      reason = `${primaryRoute.name} is running smoothly with ${primaryRoute.reliabilityRate}% reliability. A ${primaryRoute.bufferMinutes}-minute buffer ensures comfortable arrival.`;
-    }
+    // 6. Tendem Human-in-the-Loop check
+    const escalation = await tendemEscalationService.evaluateEscalation(
+      agentResult.state,
+      agentResult.confidence,
+      primaryRoute,
+      feedStatuses.some((s) => s.status === 'offline')
+    );
 
-    // 6. Build and validate response against Zod schema
+    // 7. Build and validate response against Zod schema
     const verdictPayload = {
-      state,
-      confidence,
+      state: agentResult.state,
+      confidence: agentResult.confidence,
       leaveByTime: primaryRoute.departureTime,
       countdownMinutes,
-      reason,
+      reason: agentResult.reason,
       primaryRoute,
       planBRoute,
       allCandidates: candidates,
-      alerts: activeAlerts,
+      alerts: snapshot.alerts,
       freshnessTimestamp: `Updated ${feedStatuses[0]?.lastAgeSeconds || 14}s ago`,
       feedStatus: feedStatuses,
     };
@@ -66,6 +130,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       verdict: validatedResponse,
+      modelUsed: agentResult.modelUsed,
+      escalation,
     });
   } catch (error) {
     console.error('Error generating verdict:', error);

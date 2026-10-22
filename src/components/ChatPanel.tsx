@@ -30,7 +30,7 @@ export function ChatPanel({ verdict }: ChatPanelProps) {
     'Why did the departure time shift?',
   ];
 
-  const handleSend = (textToSend?: string) => {
+  const handleSend = async (textToSend?: string) => {
     const query = textToSend || inputValue;
     if (!query.trim()) return;
 
@@ -45,48 +45,47 @@ export function ChatPanel({ verdict }: ChatPanelProps) {
     setInputValue('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      let replyText = '';
-      let citations: { source: string; metric: string }[] = [];
+    try {
+      const history = messages.map((m) => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text,
+      }));
 
-      if (query.toLowerCase().includes('coffee')) {
-        if (verdict.state === 'comfortable') {
-          replyText = `Yes, but keep it brief. You have an allocated safety buffer of ${verdict.primaryRoute.bufferMinutes} minutes before your recommended departure. A 4-5 minute coffee stop at Hoboken Terminal leaves you safely on schedule.`;
-          citations = [
-            { source: 'Buffer Allocation', metric: `+${verdict.primaryRoute.bufferMinutes}m buffer available` },
-            { source: 'Walking Estimate', metric: '2m walk to turnstiles' },
-          ];
-        } else {
-          replyText = `Not recommended. Your verdict is currently ${verdict.state.toUpperCase()} with departure in ${verdict.countdownMinutes} minutes. Even a 3-minute delay risks missing your target arrival window.`;
-          citations = [
-            { source: 'Buffer Margin', metric: 'Safety margin tight' },
-          ];
-        }
-      } else if (query.toLowerCase().includes('ferry')) {
-        replyText = `The NY Waterway Ferry at 14th St departs at 8:20 AM and takes 12 mins to Midtown W 39th St. It is 98% reliable with zero tunnel congestion, but costs $9.00 vs $2.75 for PATH. In current conditions, your primary route is faster, but the Ferry remains on standby as Plan B.`;
-        citations = [
-          { source: 'NY Waterway Realtime', metric: 'Next ferry: 08:20 AM' },
-          { source: 'Fare Comparison', metric: '$9.00 vs $2.75' },
-        ];
-      } else {
-        replyText = `Based on feed updates received ${verdict.freshnessTimestamp}, the primary line (${verdict.primaryRoute.name}) is operating with ${verdict.primaryRoute.reliabilityRate}% historical reliability. Your arrive-by target is protected with a ${verdict.primaryRoute.bufferMinutes}-minute safety margin.`;
-        citations = [
-          { source: 'Telemetry Feed', metric: verdict.freshnessTimestamp },
-          { source: 'Reliability Index', metric: `${verdict.primaryRoute.reliabilityRate}% on-time` },
-        ];
-      }
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: query,
+          history,
+        }),
+      });
 
+      const data = await res.json();
       const agentMsg: ChatMessage = {
         id: `a-${Date.now()}`,
         sender: 'agent',
-        text: replyText,
+        text: data.reply || 'Live telemetry retrieved.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        dataCitations: citations,
+        dataCitations: data.dataCitations || [],
       };
 
       setMessages((prev) => [...prev, agentMsg]);
+    } catch (err) {
+      console.warn('Chat request error, using fallback:', err);
+      const fallbackMsg: ChatMessage = {
+        id: `a-${Date.now()}`,
+        sender: 'agent',
+        text: `Based on live feed telemetry, ${verdict.primaryRoute.name} is recommended for departure at ${verdict.leaveByTime} AM with an allocated safety buffer of ${verdict.primaryRoute.bufferMinutes} minutes.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        dataCitations: [
+          { source: 'Buffer Margin', metric: `+${verdict.primaryRoute.bufferMinutes}m` },
+          { source: 'Line Reliability', metric: `${verdict.primaryRoute.reliabilityRate}%` },
+        ],
+      };
+      setMessages((prev) => [...prev, fallbackMsg]);
+    } finally {
       setIsTyping(false);
-    }, 600);
+    }
   };
 
   return (
