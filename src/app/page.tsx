@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '@/components/Header';
 import { VerdictCard } from '@/components/VerdictCard';
 import { DepartureTimeline } from '@/components/DepartureTimeline';
-import { MapView } from '@/components/MapPlaceholder';
+import { MapboxMap } from '@/components/MapboxMap';
 import { ChatPanel } from '@/components/ChatPanel';
 import { CommuteSettingsModal } from '@/components/CommuteSettingsModal';
 import { Footer } from '@/components/Footer';
@@ -133,22 +133,24 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Column (7 cols): Interactive Map & Departure Timeline */}
           <div className="lg:col-span-7 space-y-6">
-            {/* Interactive Map with ResizeObserver container */}
+            {/* Interactive Mapbox GL Map with ResizeObserver container (Phase 5.1 & 5.2) */}
             <div className="h-[340px] w-full">
-              <MapView
+              <MapboxMap
                 primaryRoute={verdict.primaryRoute}
                 planBRoute={verdict.planBRoute}
                 selectedRoute={selectedRoute}
+                verdictState={verdict.state}
                 originName={currentProfile.origin.name}
                 destinationName={currentProfile.destination.name}
               />
             </div>
 
-            {/* Departure Timeline */}
+            {/* Departure Timeline with live countdown clock (Phase 5.3) */}
             <DepartureTimeline
               primaryRoute={verdict.primaryRoute}
               planBRoute={verdict.planBRoute}
               selectedRoute={selectedRoute}
+              verdictState={verdict.state}
               onSelectRoute={(route) => setSelectedRoute(route)}
             />
           </div>

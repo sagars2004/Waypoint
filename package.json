@@ -10,10 +10,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@types/mapbox-gl": "^3.4.1",
     "clsx": "^2.1.1",
     "gtfs-realtime-bindings": "^2.2.0",
     "langsmith": "^0.11.0",
     "lucide-react": "^1.57.0",
+    "mapbox-gl": "^3.33.0",
     "next": "16.4.1",
     "openai": "^7.42.0",
     "react": "19.3.0",
