@@ -2,15 +2,13 @@
 
 import React from 'react';
 import { 
-  CheckCircle2, 
-  AlertTriangle, 
-  AlertOctagon, 
+  Navigation, 
   Clock, 
+  RotateCcw, 
+  AlertTriangle, 
   ShieldCheck, 
-  ArrowRight, 
-  RotateCcw,
-  Sparkles,
-  Info
+  ArrowRight,
+  Sparkles
 } from 'lucide-react';
 import { Verdict, RouteCandidate } from '@/types/commute';
 
@@ -24,195 +22,198 @@ export function VerdictCard({ verdict, onSelectRoute }: VerdictCardProps) {
   const isTight = verdict.state === 'tight';
   const isReroute = verdict.state === 'reroute';
 
-  const stateConfig = {
+  const badgeConfig = {
     comfortable: {
-      badgeBg: 'bg-emerald-500/15',
-      badgeBorder: 'border-emerald-500/30',
-      badgeText: 'text-emerald-400',
-      heroBorder: 'border-emerald-500/30',
-      glow: 'glow-comfortable',
-      icon: <CheckCircle2 className="h-6 w-6 text-emerald-400" />,
-      label: 'COMFORTABLE',
-      sublabel: 'Low risk of delays along your corridor',
+      dot: 'bg-emerald-500',
+      label: 'Comfortable',
+      container: 'bg-zinc-100 text-zinc-800 border-zinc-200',
     },
     tight: {
-      badgeBg: 'bg-amber-500/15',
-      badgeBorder: 'border-amber-500/30',
-      badgeText: 'text-amber-400',
-      heroBorder: 'border-amber-500/30',
-      glow: 'glow-tight',
-      icon: <AlertTriangle className="h-6 w-6 text-amber-400" />,
-      label: 'TIGHT BUT DOABLE',
-      sublabel: 'Minor congestion / reduced transfer margins',
+      dot: 'bg-amber-500',
+      label: 'Tight Margin',
+      container: 'bg-amber-50 text-amber-800 border-amber-200',
     },
     reroute: {
-      badgeBg: 'bg-rose-500/15',
-      badgeBorder: 'border-rose-500/30',
-      badgeText: 'text-rose-400',
-      heroBorder: 'border-rose-500/30',
-      glow: 'glow-reroute',
-      icon: <AlertOctagon className="h-6 w-6 text-rose-400" />,
-      label: 'REROUTE NOW',
-      sublabel: 'Severe delay or suspension on primary line',
+      dot: 'bg-red-500',
+      label: 'Reroute Recommended',
+      container: 'bg-red-50 text-red-800 border-red-200',
     },
   }[verdict.state];
 
-  const confidenceBadge = {
-    high: { text: 'High Confidence', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-    medium: { text: 'Medium Confidence', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
-    low: { text: 'Low Confidence (Stale feed)', color: 'text-rose-400 bg-rose-500/10 border-rose-500/20' },
-  }[verdict.confidence];
+  // Extract first and last leg names for the Concourse route graphic
+  const firstLeg = verdict.primaryRoute.legs[0];
+  const lastLeg = verdict.primaryRoute.legs[verdict.primaryRoute.legs.length - 1];
 
   return (
-    <div className={`relative overflow-hidden rounded-2xl glass-panel p-6 border ${stateConfig.heroBorder} ${stateConfig.glow} transition-all duration-300`}>
-      {/* Background ambient lighting */}
-      <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
-      
-      {/* Header Row: Verdict Status & Confidence */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div className="flex items-center gap-3">
-          <div className={`p-2.5 rounded-xl ${stateConfig.badgeBg} border ${stateConfig.badgeBorder}`}>
-            {stateConfig.icon}
+    <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-xs space-y-6">
+      {/* Card Header matching Concourse */}
+      <div className="flex flex-row items-center justify-between pb-2 border-b border-zinc-100">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900 border border-zinc-200">
+            <Navigation className="h-4 w-4" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className={`text-base font-extrabold tracking-wide ${stateConfig.badgeText}`}>
-                {stateConfig.label}
-              </span>
-              <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full border ${confidenceBadge.color}`}>
-                {confidenceBadge.text}
-              </span>
-            </div>
-            <p className="text-xs text-slate-400">{stateConfig.sublabel}</p>
-          </div>
-        </div>
-
-        {/* Live freshness badge */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/80 border border-white/10 text-xs text-slate-400">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>{verdict.freshnessTimestamp}</span>
-        </div>
-      </div>
-
-      {/* Main Leave-By Hero Section */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-        {/* Left Column: Big Departure Time */}
-        <div className="md:col-span-7 flex flex-col justify-center">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-cyan-400" />
-            Recommended Departure
-          </div>
-
-          <div className="flex items-baseline gap-3">
-            <h2 className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-              {verdict.leaveByTime}
-              <span className="text-xl sm:text-2xl font-bold text-slate-400 ml-1.5">AM</span>
+            <h2 className="text-base font-bold text-zinc-900">
+              {verdict.primaryRoute.name}
             </h2>
-            <div className="px-3 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-semibold text-sm">
-              in {verdict.countdownMinutes} mins
-            </div>
-          </div>
-
-          {/* Primary Route Name and Summary */}
-          <div className="mt-4 p-3 rounded-xl bg-slate-900/60 border border-white/5 flex items-center justify-between">
-            <div>
-              <div className="text-sm font-bold text-slate-200">
-                {verdict.primaryRoute.name}
-              </div>
-              <div className="text-xs text-slate-400">
-                {verdict.primaryRoute.summary} • {verdict.primaryRoute.totalDurationMinutes} min trip
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="text-xs font-semibold text-emerald-400 block">
-                {verdict.primaryRoute.bufferMinutes}m buffer
-              </span>
-              <span className="text-[11px] text-slate-400">
-                ${verdict.primaryRoute.estimatedCost.toFixed(2)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: AI Rationale Box */}
-        <div className="md:col-span-5 bg-slate-900/90 rounded-xl p-4 border border-white/10 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2">
-              <Sparkles className="h-3.5 w-3.5" />
-              Agent Rationale (Nemotron)
-            </div>
-            <p className="text-sm text-slate-200 leading-relaxed font-medium">
-              &ldquo;{verdict.reason}&rdquo;
+            <p className="text-xs text-zinc-500">
+              {verdict.primaryRoute.summary}
             </p>
           </div>
+        </div>
 
-          {/* Feed stats */}
-          <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Historical Reliability:</span>
-            <span className="font-semibold text-slate-200">
-              {verdict.primaryRoute.reliabilityRate}% on-time
-            </span>
+        {/* Minimalist status badge */}
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${badgeConfig.container}`}>
+          <span className={`h-2 w-2 rounded-full ${badgeConfig.dot}`} />
+          <span>{badgeConfig.label}</span>
+        </div>
+      </div>
+
+      {/* Concourse Route Graphic: Origin • ——— Leave By / Duration ——— • Destination */}
+      <div className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          {/* Origin */}
+          <div className="flex shrink-0 flex-col items-center gap-1 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white shadow-2xs">
+              DEP
+            </div>
+            <p className="text-xs font-semibold text-zinc-900 max-w-[90px] truncate" title={firstLeg?.fromName}>
+              {firstLeg?.fromName || 'Origin'}
+            </p>
+            <p className="text-xs font-bold text-zinc-900">{verdict.leaveByTime} AM</p>
+            <p className="text-[10px] text-zinc-500">Recommended</p>
+          </div>
+
+          {/* Connecting line with travel time & countdown */}
+          <div className="relative flex flex-1 items-center px-2">
+            <div className="h-0.5 w-full rounded-full bg-zinc-200" />
+            <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 shadow-2xs">
+              <Clock className="h-3 w-3 text-zinc-600" />
+              <span className="text-xs font-semibold text-zinc-800">
+                {verdict.primaryRoute.totalDurationMinutes}m transit
+              </span>
+              <span className="text-zinc-300">•</span>
+              <span className="text-xs text-zinc-500">
+                leave in {verdict.countdownMinutes}m
+              </span>
+            </div>
+          </div>
+
+          {/* Destination */}
+          <div className="flex shrink-0 flex-col items-center gap-1 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-xs font-bold text-zinc-900 border border-zinc-200 shadow-2xs">
+              ARR
+            </div>
+            <p className="text-xs font-semibold text-zinc-900 max-w-[90px] truncate" title={lastLeg?.toName}>
+              {lastLeg?.toName || 'Destination'}
+            </p>
+            <p className="text-xs font-bold text-zinc-900">09:00 AM</p>
+            <p className="text-[10px] text-zinc-500">Target</p>
           </div>
         </div>
       </div>
 
-      {/* Plan B Ready Section */}
-      {verdict.planBRoute && (
-        <div className="mt-6 pt-5 border-t border-white/10">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-slate-900/80 to-slate-900/40 p-3.5 rounded-xl border border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                <RotateCcw className="h-4 w-4" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
-                    Plan B Alternative
-                  </span>
-                  <span className="text-xs text-slate-400">• Ready if primary degrades</span>
-                </div>
-                <div className="text-sm font-semibold text-white">
-                  {verdict.planBRoute.name}
-                </div>
-              </div>
-            </div>
+      {/* Metrics Row (matching Concourse FlightStatus 4-column grid) */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 pt-1">
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+            Leave-By Time
+          </p>
+          <p className="text-lg font-bold text-zinc-900">
+            {verdict.leaveByTime} <span className="text-xs font-normal text-zinc-500">AM</span>
+          </p>
+        </div>
 
-            <div className="flex items-center gap-4 text-xs text-slate-300">
-              <div>
-                <span className="text-slate-400">Depart: </span>
-                <span className="font-medium text-white">{verdict.planBRoute.departureTime} AM</span>
-              </div>
-              <div>
-                <span className="text-slate-400">Duration: </span>
-                <span className="font-medium text-white">{verdict.planBRoute.totalDurationMinutes} min</span>
-              </div>
-              {onSelectRoute && (
-                <button
-                  onClick={() => onSelectRoute(verdict.planBRoute!)}
-                  className="px-2.5 py-1 rounded bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/40 font-medium transition flex items-center gap-1"
-                >
-                  <span>View</span>
-                  <ArrowRight className="h-3 w-3" />
-                </button>
-              )}
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+            Safety Buffer
+          </p>
+          <p className="text-lg font-bold text-zinc-900">
+            +{verdict.primaryRoute.bufferMinutes} <span className="text-xs font-normal text-zinc-500">mins</span>
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+            Historical Reliability
+          </p>
+          <p className="text-lg font-bold text-zinc-900">
+            {verdict.primaryRoute.reliabilityRate}% <span className="text-xs font-normal text-zinc-500">on-time</span>
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+            Estimated Fare
+          </p>
+          <p className="text-lg font-bold text-zinc-900">
+            ${verdict.primaryRoute.estimatedCost.toFixed(2)}
+          </p>
+        </div>
+      </div>
+
+      {/* Agent Rationale Box */}
+      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 uppercase tracking-wider mb-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-zinc-700" />
+          Departure Verdict Rationale
+        </div>
+        <p className="text-sm text-zinc-700 leading-relaxed font-normal">
+          &ldquo;{verdict.reason}&rdquo;
+        </p>
+      </div>
+
+      {/* Plan B Alternative Box */}
+      {verdict.planBRoute && (
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-zinc-100 border border-zinc-200 text-zinc-800">
+              <RotateCcw className="h-4 w-4" />
             </div>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                Plan B Alternative
+              </div>
+              <div className="text-sm font-semibold text-zinc-900">
+                {verdict.planBRoute.name}
+              </div>
+              <div className="text-xs text-zinc-500">
+                {verdict.planBRoute.summary} • {verdict.planBRoute.totalDurationMinutes}m transit
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 text-xs">
+            <div>
+              <span className="text-zinc-500">Depart: </span>
+              <span className="font-semibold text-zinc-900">{verdict.planBRoute.departureTime} AM</span>
+            </div>
+            {onSelectRoute && (
+              <button
+                onClick={() => onSelectRoute(verdict.planBRoute!)}
+                className="px-3 py-1.5 rounded-lg border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 font-medium transition flex items-center gap-1"
+              >
+                <span>View Route</span>
+                <ArrowRight className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* Active Alerts Banner if present */}
+      {/* Active Alerts Banner if any */}
       {verdict.alerts.length > 0 && (
-        <div className="mt-4 space-y-2">
+        <div className="space-y-2">
           {verdict.alerts.map((alert) => (
             <div
               key={alert.id}
-              className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs"
+              className="flex items-start gap-2.5 p-3 rounded-xl border border-amber-200 bg-amber-50/70 text-xs text-amber-900"
             >
-              <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+              <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold text-amber-300 mr-1.5">{alert.title}:</span>
+                <span className="font-semibold text-amber-950 mr-1.5">{alert.title}:</span>
                 <span>{alert.description}</span>
-                <span className="text-amber-400/70 ml-2 font-mono">({alert.timestamp})</span>
+                <span className="text-amber-700/80 ml-2 font-mono">({alert.timestamp})</span>
               </div>
             </div>
           ))}

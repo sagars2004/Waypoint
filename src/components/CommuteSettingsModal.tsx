@@ -28,7 +28,6 @@ export function CommuteSettingsModal({
       ? current.filter((m) => m !== mode)
       : [...current, mode];
     
-    // Keep at least one mode
     if (updated.length > 0) {
       setFormData({ ...formData, acceptedModes: updated });
     }
@@ -40,18 +39,18 @@ export function CommuteSettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
-      <div className="w-full max-w-md rounded-2xl glass-panel bg-slate-950 p-6 border border-white/10 shadow-2xl">
-        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 border border-zinc-200 shadow-xl">
+        <div className="flex items-center justify-between pb-4 border-b border-zinc-100">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400">
+            <div className="p-1.5 rounded-lg bg-zinc-100 text-zinc-900 border border-zinc-200">
               <SlidersHorizontal className="h-4 w-4" />
             </div>
-            <h3 className="text-base font-bold text-white">Commute Preferences</h3>
+            <h3 className="text-base font-bold text-zinc-900">Commute Preferences</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition"
           >
             <X className="h-5 w-5" />
           </button>
@@ -60,7 +59,7 @@ export function CommuteSettingsModal({
         <div className="space-y-4 py-4 text-xs">
           {/* Origin & Destination */}
           <div>
-            <label className="text-slate-400 font-semibold block mb-1">Origin Station</label>
+            <label className="text-zinc-600 font-semibold block mb-1">Origin Station</label>
             <input
               type="text"
               value={formData.origin.name}
@@ -70,12 +69,12 @@ export function CommuteSettingsModal({
                   origin: { ...formData.origin, name: e.target.value },
                 })
               }
-              className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
             />
           </div>
 
           <div>
-            <label className="text-slate-400 font-semibold block mb-1">Destination</label>
+            <label className="text-zinc-600 font-semibold block mb-1">Destination</label>
             <input
               type="text"
               value={formData.destination.name}
@@ -85,14 +84,14 @@ export function CommuteSettingsModal({
                   destination: { ...formData.destination, name: e.target.value },
                 })
               }
-              className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
             />
           </div>
 
           {/* Arrive-by time */}
           <div>
-            <label className="text-slate-400 font-semibold block mb-1 flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-cyan-400" />
+            <label className="text-zinc-600 font-semibold block mb-1 flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 text-zinc-700" />
               Target Arrive-By Time
             </label>
             <input
@@ -101,13 +100,13 @@ export function CommuteSettingsModal({
               onChange={(e) =>
                 setFormData({ ...formData, arriveByTime: e.target.value })
               }
-              className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
             />
           </div>
 
           {/* Accepted Modes */}
           <div>
-            <label className="text-slate-400 font-semibold block mb-2">Accepted Modes</label>
+            <label className="text-zinc-600 font-semibold block mb-2">Accepted Modes</label>
             <div className="grid grid-cols-2 gap-2">
               {[
                 { mode: 'path' as TransitMode, label: 'PATH Train', icon: <Train className="h-3.5 w-3.5" /> },
@@ -124,12 +123,12 @@ export function CommuteSettingsModal({
                     onClick={() => toggleMode(item.mode)}
                     className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-left transition ${
                       active
-                        ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
-                        : 'bg-slate-900 border-white/10 text-slate-400 hover:text-slate-200'
+                        ? 'bg-zinc-900 border-zinc-900 text-white font-medium'
+                        : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:text-zinc-900'
                     }`}
                   >
                     {item.icon}
-                    <span className="font-medium truncate">{item.label}</span>
+                    <span className="truncate">{item.label}</span>
                   </button>
                 );
               })}
@@ -138,8 +137,8 @@ export function CommuteSettingsModal({
 
           {/* Risk Tolerance */}
           <div>
-            <label className="text-slate-400 font-semibold block mb-1.5 flex items-center gap-1.5">
-              <ShieldAlert className="h-3.5 w-3.5 text-cyan-400" />
+            <label className="text-zinc-600 font-semibold block mb-1.5 flex items-center gap-1.5">
+              <ShieldAlert className="h-3.5 w-3.5 text-zinc-700" />
               Risk Tolerance Margin
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -157,8 +156,8 @@ export function CommuteSettingsModal({
                     }
                     className={`px-2.5 py-1.5 rounded-xl border capitalize font-medium transition ${
                       active
-                        ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300'
-                        : 'bg-slate-900 border-white/10 text-slate-400 hover:text-slate-200'
+                        ? 'bg-zinc-900 border-zinc-900 text-white font-semibold'
+                        : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:text-zinc-900'
                     }`}
                   >
                     {level}
@@ -169,16 +168,16 @@ export function CommuteSettingsModal({
           </div>
         </div>
 
-        <div className="pt-4 border-t border-white/10 flex items-center justify-end gap-2">
+        <div className="pt-4 border-t border-zinc-100 flex items-center justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 border border-white/10 font-medium text-xs transition"
+            className="px-4 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium text-xs transition"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs shadow-lg shadow-cyan-600/20 transition flex items-center gap-1.5"
+            className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs shadow-2xs transition flex items-center gap-1.5"
           >
             <Check className="h-3.5 w-3.5" />
             Save Profile
