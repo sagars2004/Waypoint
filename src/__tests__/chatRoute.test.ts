@@ -35,6 +35,8 @@ describe('POST /api/chat profile context', () => {
 
     expect(response.status).toBe(200);
     expect(payload.reply).toContain('PATH Direct to WTC');
+    expect(payload.latencyMs).toEqual(expect.any(Number));
+    expect(response.headers.get('server-timing')).toMatch(/^waypoint;dur=/);
   });
 
   it('reports degraded confidence when a replay source is offline', async () => {

@@ -7,7 +7,7 @@ import {
 } from '@/types/schemas';
 import { LeadAgentOutputSchema } from '@/types/schemas';
 import { nebiusClient } from './nebiusClient';
-import { Client as LangSmithClient } from 'langsmith';
+import { Client as LangSmithClient, RunTree } from 'langsmith';
 
 export interface LeadAgentVerdictInput {
   origin: string;
@@ -102,6 +102,65 @@ export class LeadAgent {
     return LeadAgent.instance;
   }
 
+  private async startTrace(
+    input: LeadAgentVerdictInput,
+    primaryCandidate: RouteCandidate
+  ): Promise<RunTree | null> {
+    if (!this.langsmithClient) return null;
+
+    const trace = new RunTree({
+      name: 'waypoint.lead_agent.verdict',
+      run_type: 'chain',
+      project_name: process.env.LANGCHAIN_PROJECT || 'waypoint',
+      client: this.langsmithClient,
+      tags: ['waypoint', 'verdict', input.baseVerdictState],
+      inputs: {
+        corridor: `${input.origin} to ${input.destination}`,
+        arriveByTime: input.arriveByTime,
+        primaryRoute: primaryCandidate.id,
+        candidateCount: input.candidates.length,
+        alertCount: input.alerts.length,
+        feedStatuses: input.feedStatuses.map((status) => ({
+          source: status.source,
+          status: status.status,
+          ageSeconds: status.lastAgeSeconds,
+        })),
+      },
+    });
+
+    try {
+      await trace.postRun();
+      return trace;
+    } catch (error) {
+      console.warn('LangSmith trace start failed; continuing without tracing:', error);
+      return null;
+    }
+  }
+
+  private async finishTrace(
+    trace: RunTree | null,
+    output?: LeadAgentVerdictOutput,
+    error?: unknown
+  ): Promise<void> {
+    if (!trace) return;
+
+    try {
+      if (error) {
+        await trace.end(undefined, String(error));
+      } else {
+        await trace.end({
+          state: output?.state,
+          confidence: output?.confidence,
+          modelUsed: output?.modelUsed,
+          reason: output?.reason,
+        });
+      }
+      await trace.postRun();
+    } catch (traceError) {
+      console.warn('LangSmith trace completion failed:', traceError);
+    }
+  }
+
   /**
    * Evaluates structured corridor telemetry using NVIDIA Nemotron 3 on Nebius Token Factory
    */
@@ -114,13 +173,17 @@ export class LeadAgent {
       throw new Error('Cannot evaluate a verdict without a primary route.');
     }
 
+    const trace = await this.startTrace(input, primaryCandidate);
+
     if (!client) {
-      return {
+      const output = {
         state: input.baseVerdictState,
         confidence: input.baseConfidence,
         reason: deterministicReason(input, primaryCandidate),
         modelUsed: 'Deterministic Engine (Rules Fallback)',
       };
+      await this.finishTrace(trace, output);
+      return output;
     }
 
     // System prompt enforcing strict anti-hallucination rules (PRD principle: never invent departures)
@@ -177,21 +240,25 @@ CRITICAL RULES:
         throw new Error('Lead agent reason cited a time not present in route data.');
       }
 
-      return {
+      const output = {
         // Deterministic scoring owns the verdict state; the model only explains it.
         state: input.baseVerdictState,
         confidence: capConfidence(parsed.confidence, input.baseConfidence),
         reason: parsed.reason,
         modelUsed: `NVIDIA Nemotron (${model}) via Nebius`,
       };
+      await this.finishTrace(trace, output);
+      return output;
     } catch (err) {
       console.warn('Nebius Nemotron call failed, using deterministic fallback:', err);
-      return {
+      const output = {
         state: input.baseVerdictState,
         confidence: input.baseConfidence,
         reason: deterministicReason(input, primaryCandidate),
         modelUsed: 'Deterministic Fallback (API error)',
       };
+      await this.finishTrace(trace, output, err);
+      return output;
     }
   }
 }

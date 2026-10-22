@@ -26,6 +26,8 @@ describe('POST /api/verdict replay mode', () => {
     expect(response.status).toBe(200);
     expect(payload.success).toBe(true);
     expect(payload.mode).toBe('replay');
+    expect(payload.latencyMs).toEqual(expect.any(Number));
+    expect(response.headers.get('server-timing')).toMatch(/^waypoint;dur=/);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

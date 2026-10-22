@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server';
 import { feedManager, ReplayScenarioKey } from '@/services/feedManager';
 import { RouteGenerator } from '@/services/routeGenerator';
 import { RiskScorer } from '@/services/riskScorer';
@@ -10,8 +9,10 @@ import { tendemEscalationService } from '@/services/ai/tendemEscalation';
 import { fetchLiveWeather } from '@/services/liveFeeds/weatherConnector';
 import { njTransitConnector } from '@/services/liveFeeds/njTransitConnector';
 import { nycDotTrafficConnector } from '@/services/liveFeeds/nycDotTrafficConnector';
+import { timedJson } from '@/lib/requestTiming';
 
 export async function POST(request: Request) {
+  const startedAt = performance.now();
   try {
     const body = await request.json().catch(() => ({}));
     const scenario: ReplayScenarioKey = body.scenario || 'normal';
@@ -139,7 +140,7 @@ export async function POST(request: Request) {
 
     const validatedResponse = VerdictResponseSchema.parse(verdictPayload);
 
-    return NextResponse.json({
+    return timedJson('/api/verdict', startedAt, {
       success: true,
       verdict: validatedResponse,
       modelUsed: agentResult.modelUsed,
@@ -148,9 +149,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Error generating verdict:', error);
-    return NextResponse.json(
-      { success: false, error: (error as Error).message },
-      { status: 400 }
-    );
+    return timedJson('/api/verdict', startedAt, {
+      success: false,
+      error: (error as Error).message,
+    }, 400);
   }
 }

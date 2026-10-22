@@ -1,22 +1,22 @@
-import { NextResponse } from 'next/server';
 import { nebiusClient } from '@/services/ai/nebiusClient';
 import { feedManager } from '@/services/feedManager';
 import { RouteGenerator } from '@/services/routeGenerator';
 import { CommuteProfileSchema } from '@/types/schemas';
+import { timedJson } from '@/lib/requestTiming';
 
 export async function POST(request: Request) {
+  const startedAt = performance.now();
   try {
     const { message, scenario = 'normal', history = [], profile: rawProfile } = await request.json();
     if (!message || typeof message !== 'string') {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+      return timedJson('/api/chat', startedAt, { error: 'Message is required' }, 400);
     }
 
     const profileResult = CommuteProfileSchema.safeParse(rawProfile);
     if (!profileResult.success) {
-      return NextResponse.json(
-        { error: 'A valid commute profile is required' },
-        { status: 400 }
-      );
+      return timedJson('/api/chat', startedAt, {
+        error: 'A valid commute profile is required',
+      }, 400);
     }
 
     const snapshot = feedManager.getSnapshot(scenario);
@@ -87,7 +87,7 @@ export async function POST(request: Request) {
         ];
       }
 
-      return NextResponse.json({
+      return timedJson('/api/chat', startedAt, {
         reply,
         dataCitations: citations,
         uncertainty,
@@ -124,7 +124,7 @@ Keep your reply concise (2-4 sentences), factual, directly answer the rider's qu
 
     const reply = completion.choices[0]?.message?.content || 'Telemetry retrieved.';
 
-    return NextResponse.json({
+    return timedJson('/api/chat', startedAt, {
       reply,
       dataCitations: [
         { source: 'NVIDIA Nemotron', metric: nebiusClient.getUltraModel() },
@@ -137,9 +137,8 @@ Keep your reply concise (2-4 sentences), factual, directly answer the rider's qu
     });
   } catch (error) {
     console.error('Chat endpoint error:', error);
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
+    return timedJson('/api/chat', startedAt, {
+      error: (error as Error).message,
+    }, 500);
   }
 }
