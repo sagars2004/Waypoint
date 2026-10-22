@@ -8,6 +8,7 @@ import {
 import { LeadAgentOutputSchema } from '@/types/schemas';
 import { nebiusClient } from './nebiusClient';
 import { Client as LangSmithClient, RunTree } from 'langsmith';
+import { formatTime12 } from '@/lib/time';
 
 export interface LeadAgentVerdictInput {
   origin: string;
@@ -48,10 +49,10 @@ function deterministicReason(
   primaryCandidate: RouteCandidate
 ): string {
   if (input.baseVerdictState === 'reroute') {
-    return `Primary line suspended due to track/power emergency. Reroute immediately to ${primaryCandidate.name} at ${primaryCandidate.departureTime} AM.`;
+    return `Primary line suspended due to track/power emergency. Reroute immediately to ${primaryCandidate.name} at ${formatTime12(primaryCandidate.departureTime)}.`;
   }
   if (input.baseVerdictState === 'tight') {
-    return `Corridor signal delays are present. Leave by ${primaryCandidate.departureTime} AM to maintain an arrival safety margin.`;
+    return `Corridor signal delays are present. Leave by ${formatTime12(primaryCandidate.departureTime)} to maintain an arrival safety margin.`;
   }
   return `${primaryCandidate.name} is running smoothly with ${primaryCandidate.reliabilityRate}% historical reliability. Allocated buffer of ${primaryCandidate.bufferMinutes} minutes ensures comfortable on-time arrival.`;
 }
@@ -203,17 +204,17 @@ CRITICAL RULES:
 
     const userPrompt = JSON.stringify({
       corridor: `${input.origin} to ${input.destination}`,
-      targetArrival: `${input.arriveByTime} AM`,
+      targetArrival: formatTime12(input.arriveByTime),
       recommendedPrimaryOption: {
         name: primaryCandidate.name,
-        leaveByTime: `${primaryCandidate.departureTime} AM`,
+        leaveByTime: formatTime12(primaryCandidate.departureTime),
         duration: `${primaryCandidate.totalDurationMinutes} mins`,
         bufferMargin: `+${primaryCandidate.bufferMinutes} mins`,
         reliability: `${primaryCandidate.reliabilityRate}%`,
       },
       planBAlternative: input.candidates[1] ? {
         name: input.candidates[1].name,
-        leaveByTime: `${input.candidates[1].departureTime} AM`,
+        leaveByTime: formatTime12(input.candidates[1].departureTime),
         duration: `${input.candidates[1].totalDurationMinutes} mins`,
       } : null,
       activeAlerts: input.alerts.map((a) => `${a.agency} - ${a.title}: ${a.description}`),

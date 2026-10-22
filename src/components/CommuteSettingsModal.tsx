@@ -57,37 +57,6 @@ export function CommuteSettingsModal({
         </div>
 
         <div className="space-y-4 py-4 text-xs">
-          {/* Origin & Destination */}
-          <div>
-            <label className="text-zinc-600 font-semibold block mb-1">Origin Station</label>
-            <input
-              type="text"
-              value={formData.origin.name}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  origin: { ...formData.origin, name: e.target.value },
-                })
-              }
-              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-            />
-          </div>
-
-          <div>
-            <label className="text-zinc-600 font-semibold block mb-1">Destination</label>
-            <input
-              type="text"
-              value={formData.destination.name}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  destination: { ...formData.destination, name: e.target.value },
-                })
-              }
-              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-            />
-          </div>
-
           {/* Arrive-by time */}
           <div>
             <label className="text-zinc-600 font-semibold block mb-1 flex items-center gap-1.5">

@@ -14,6 +14,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { RouteCandidate, VerdictState } from '@/types/commute';
+import { formatTime12 } from '@/lib/time';
 
 interface DepartureTimelineProps {
   primaryRoute: RouteCandidate;
@@ -54,6 +55,63 @@ function formatCountdown(totalSeconds: number): { display: string; urgent: boole
   return { display: `${secs}s`, urgent: true, passed: false };
 }
 
+function clockMinutes(value: string): number {
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function formatClock(totalMinutes: number): string {
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+  const hours = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  return `${hour12}:${minutes.toString().padStart(2, '0')} ${suffix}`;
+}
+
+function shiftRouteSchedule(route: RouteCandidate, offsetMinutes: number): RouteCandidate {
+  const shift = (value: string) => {
+    const normalized = ((clockMinutes(value) + offsetMinutes) % 1440 + 1440) % 1440;
+    return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
+  };
+
+  return {
+    ...route,
+    departureTime: shift(route.departureTime),
+    arrivalTime: shift(route.arrivalTime),
+    legs: route.legs.map((leg) => ({
+      ...leg,
+      departureTime: shift(leg.departureTime),
+      arrivalTime: shift(leg.arrivalTime),
+    })),
+  };
+}
+
+function routeHeadwayMinutes(route: RouteCandidate): number {
+  const mode = route.legs.find((leg) => !leg.line.toLowerCase().includes('walk'))?.mode;
+  if (mode === 'path') return 4;
+  if (mode === 'ferry') return 30;
+  if (mode === 'bus') return 12;
+  if (mode === 'driving') return 20;
+  return 15;
+}
+
+function upcomingDepartures(route: RouteCandidate, now: Date): { label: string; route: RouteCandidate }[] {
+  const headway = routeHeadwayMinutes(route);
+  const baseMinutes = clockMinutes(route.departureTime);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  let nextMinutes = baseMinutes;
+  while (nextMinutes < nowMinutes) nextMinutes += headway;
+
+  return Array.from({ length: 4 }, (_, index) => {
+    const departureMinutes = nextMinutes + index * headway;
+    return {
+      label: formatClock(departureMinutes),
+      route: shiftRouteSchedule(route, departureMinutes - baseMinutes),
+    };
+  });
+}
+
 // Map from verdict state to color utility classes
 const VERDICT_CLASSES: Record<VerdictState, { border: string; bg: string; text: string; dot: string }> = {
   comfortable: {
@@ -86,6 +144,7 @@ export function DepartureTimeline({
   // Live countdown state
   const [secondsUntilDeparture, setSecondsUntilDeparture] = useState<number>(0);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [planningFromNow, setPlanningFromNow] = useState(false);
 
   useEffect(() => {
     const departureDate = parseTimeToday(selectedRoute.departureTime);
@@ -167,7 +226,39 @@ export function DepartureTimeline({
             </button>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setPlanningFromNow((active) => !active)}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${planningFromNow ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'}`}
+        >
+          <Timer className="h-3.5 w-3.5" />
+          {planningFromNow ? 'Planning from now' : 'Depart now'}
+        </button>
       </div>
+
+      {planningFromNow && currentTime && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-bold text-blue-950">Upcoming {selectedRoute.name} departures</p>
+              <p className="text-[10px] text-blue-700">Based on the selected route&apos;s typical {routeHeadwayMinutes(selectedRoute)}-minute headway. Current time: {currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {upcomingDepartures(selectedRoute, currentTime).map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => onSelectRoute(option.route)}
+                  className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold ${option.route.departureTime === selectedRoute.departureTime ? 'border-blue-700 bg-blue-700 text-white' : 'border-blue-200 bg-white text-blue-800 hover:bg-blue-100'}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* === LIVE COUNTDOWN CLOCK (Phase 5.3) === */}
       <div className={`flex items-center gap-4 p-4 rounded-xl border ${verdictCls.border} ${verdictCls.bg}`}>
@@ -189,27 +280,9 @@ export function DepartureTimeline({
             <Timer className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
             <span className="text-xs text-zinc-500">
               Leave by{' '}
-              <span className="font-bold text-zinc-800">
-                {selectedRoute.departureTime.length === 5
-                  ? (() => {
-                      const [h, m] = selectedRoute.departureTime.split(':').map(Number);
-                      const suffix = h >= 12 ? 'PM' : 'AM';
-                      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                      return `${h12}:${m.toString().padStart(2, '0')} ${suffix}`;
-                    })()
-                  : selectedRoute.departureTime}
-              </span>
+              <span className="font-bold text-zinc-800">{formatTime12(selectedRoute.departureTime)}</span>
               {' '}· Arrive by{' '}
-              <span className="font-bold text-zinc-800">
-                {selectedRoute.arrivalTime.length === 5
-                  ? (() => {
-                      const [h, m] = selectedRoute.arrivalTime.split(':').map(Number);
-                      const suffix = h >= 12 ? 'PM' : 'AM';
-                      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                      return `${h12}:${m.toString().padStart(2, '0')} ${suffix}`;
-                    })()
-                  : selectedRoute.arrivalTime}
-              </span>
+              <span className="font-bold text-zinc-800">{formatTime12(selectedRoute.arrivalTime)}</span>
             </span>
           </div>
         </div>
@@ -222,6 +295,7 @@ export function DepartureTimeline({
                   hour: '2-digit',
                   minute: '2-digit',
                   second: '2-digit',
+                  hour12: true,
                 })
               : '—'}
           </div>
@@ -261,9 +335,9 @@ export function DepartureTimeline({
           })}
         </div>
         <div className="flex items-center justify-between mt-1.5 text-[10px] text-zinc-400">
-          <span>{selectedRoute.departureTime}</span>
+          <span>{formatTime12(selectedRoute.departureTime)}</span>
           <span className="text-center text-zinc-500 font-medium">{selectedRoute.totalDurationMinutes}m journey</span>
-          <span>{selectedRoute.arrivalTime}</span>
+          <span>{formatTime12(selectedRoute.arrivalTime)}</span>
         </div>
       </div>
 
@@ -320,7 +394,7 @@ export function DepartureTimeline({
                     <span className="text-xs font-bold text-zinc-900 truncate">{leg.line}</span>
                   </div>
                   <span className="text-xs font-mono text-zinc-700 shrink-0 font-semibold tabular-nums">
-                    {leg.departureTime} → {leg.arrivalTime}
+                    {formatTime12(leg.departureTime)} → {formatTime12(leg.arrivalTime)}
                   </span>
                 </div>
 
@@ -360,7 +434,7 @@ export function DepartureTimeline({
           <span>~90% on-time confidence buffer</span>
         </span>
         <span className="font-mono text-zinc-800 font-semibold">
-          Target: {selectedRoute.arrivalTime}
+          Target: {formatTime12(selectedRoute.arrivalTime)}
         </span>
       </div>
     </div>

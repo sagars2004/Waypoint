@@ -47,4 +47,21 @@ test.describe('Waypoint replay mode', () => {
     await page.reload();
     await expect(page.getByText('Target Arrival: 08:30 AM')).toBeVisible();
   });
+
+  test('selects custom stops from the searchable transit catalog', async ({ page }) => {
+    const stopSearches = page.locator('input[type="search"]');
+
+    await stopSearches.nth(0).fill('Journal Square');
+    await page.getByRole('button', { name: 'Journal Square Transportation Center' }).click();
+    await stopSearches.nth(1).fill('World Trade Center');
+    await page.getByRole('button', { name: 'World Trade Center' }).click();
+
+    await expect(stopSearches.nth(0)).toHaveValue('Journal Square Transportation Center');
+    await expect(stopSearches.nth(1)).toHaveValue('World Trade Center');
+  });
+
+  test('shows upcoming departures when planning from the current time', async ({ page }) => {
+    await page.getByRole('button', { name: 'Depart now' }).click();
+    await expect(page.getByText(/Upcoming .* departures/)).toBeVisible();
+  });
 });

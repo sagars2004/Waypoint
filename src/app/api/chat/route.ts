@@ -3,6 +3,7 @@ import { feedManager } from '@/services/feedManager';
 import { RouteGenerator } from '@/services/routeGenerator';
 import { CommuteProfileSchema } from '@/types/schemas';
 import { timedJson } from '@/lib/requestTiming';
+import { formatTime12 } from '@/lib/time';
 
 export async function POST(request: Request) {
   const startedAt = performance.now();
@@ -55,11 +56,11 @@ export async function POST(request: Request) {
         const coffeeStopMinutes = 5;
         const remainingBuffer = primary.bufferMinutes - coffeeStopMinutes;
         reply = remainingBuffer >= 0
-          ? `Your recommended ${primary.name} departure is ${primary.departureTime} AM with a ${primary.bufferMinutes}-minute safety buffer. A 5-minute coffee stop would leave approximately ${remainingBuffer} minutes of buffer.`
-          : `Your recommended ${primary.name} departure is ${primary.departureTime} AM with only a ${primary.bufferMinutes}-minute safety buffer. A 5-minute coffee stop would exceed that margin by ${Math.abs(remainingBuffer)} minutes.`;
+          ? `Your recommended ${primary.name} departure is ${formatTime12(primary.departureTime)} with a ${primary.bufferMinutes}-minute safety buffer. A 5-minute coffee stop would leave approximately ${remainingBuffer} minutes of buffer.`
+          : `Your recommended ${primary.name} departure is ${formatTime12(primary.departureTime)} with only a ${primary.bufferMinutes}-minute safety buffer. A 5-minute coffee stop would exceed that margin by ${Math.abs(remainingBuffer)} minutes.`;
         citations = [
           { source: 'Buffer Margin', metric: `+${primary.bufferMinutes}m buffer allocated` },
-          { source: 'Target Arrival', metric: `${profile.arriveByTime} AM` },
+            { source: 'Target Arrival', metric: formatTime12(profile.arriveByTime) },
           ...sharedCitations,
         ];
       } else if (lower.includes('ferry')) {
@@ -67,9 +68,9 @@ export async function POST(request: Request) {
           candidate.legs.some((leg) => leg.mode === 'ferry')
         );
         if (ferry) {
-          reply = `${ferry.name} departs at ${ferry.departureTime} AM and takes ${ferry.totalDurationMinutes} minutes. It costs $${ferry.estimatedCost.toFixed(2)} and has ${ferry.reliabilityRate}% historical reliability.`;
+        reply = `${ferry.name} departs at ${formatTime12(ferry.departureTime)} and takes ${ferry.totalDurationMinutes} minutes. It costs $${ferry.estimatedCost.toFixed(2)} and has ${ferry.reliabilityRate}% historical reliability.`;
           citations = [
-            { source: 'Route Schedule', metric: `${ferry.departureTime} AM departure` },
+            { source: 'Route Schedule', metric: `${formatTime12(ferry.departureTime)} departure` },
             { source: 'Route Cost', metric: `$${ferry.estimatedCost.toFixed(2)}` },
             { source: 'Reliability OTP', metric: `${ferry.reliabilityRate}% on-time` },
             ...sharedCitations,
@@ -79,9 +80,9 @@ export async function POST(request: Request) {
           citations = [{ source: 'Route Options', metric: 'No ferry candidate available' }, ...sharedCitations];
         }
       } else {
-        reply = `Based on the current commute snapshot, ${primary.name} is scheduled to leave at ${primary.departureTime} AM with a ${primary.bufferMinutes}-minute buffer. Historical reliability on this line is ${primary.reliabilityRate}%.`;
+        reply = `Based on the current commute snapshot, ${primary.name} is scheduled to leave at ${formatTime12(primary.departureTime)} with a ${primary.bufferMinutes}-minute buffer. Historical reliability on this line is ${primary.reliabilityRate}%.`;
         citations = [
-          { source: 'Schedule Data', metric: `${primary.departureTime} AM departure` },
+            { source: 'Schedule Data', metric: `${formatTime12(primary.departureTime)} departure` },
           { source: 'Reliability OTP', metric: `${primary.reliabilityRate}% on-time` },
           ...sharedCitations,
         ];
@@ -101,9 +102,9 @@ Ground your response strictly in the following ${snapshot.source === 'REPLAY_FIX
 
 CURRENT TELEMETRY DATA:
 - Corridor: ${profile.origin.name} to ${profile.destination.name}
-- Target Arrival: ${profile.arriveByTime} AM
-- Primary Option: ${primary.name} (Depart: ${primary.departureTime} AM, Travel: ${primary.totalDurationMinutes}m, Buffer: +${primary.bufferMinutes}m, OTP: ${primary.reliabilityRate}%, Fare: $${primary.estimatedCost.toFixed(2)})
-- Plan B Option: ${planB ? `${planB.name} (Depart: ${planB.departureTime} AM, Travel: ${planB.totalDurationMinutes}m, Fare: $${planB.estimatedCost.toFixed(2)})` : 'None'}
+- Target Arrival: ${formatTime12(profile.arriveByTime)}
+- Primary Option: ${primary.name} (Depart: ${formatTime12(primary.departureTime)}, Travel: ${primary.totalDurationMinutes}m, Buffer: +${primary.bufferMinutes}m, OTP: ${primary.reliabilityRate}%, Fare: $${primary.estimatedCost.toFixed(2)})
+- Plan B Option: ${planB ? `${planB.name} (Depart: ${formatTime12(planB.departureTime)}, Travel: ${planB.totalDurationMinutes}m, Fare: $${planB.estimatedCost.toFixed(2)})` : 'None'}
 - Active Incidents: ${snapshot.alerts.length > 0 ? snapshot.alerts.map((a) => a.title).join(', ') : 'None'}
 - Weather: ${snapshot.weather ? `${snapshot.weather.temperatureF}°F, ${snapshot.weather.condition}, wind ${snapshot.weather.windSpeedMph}mph` : 'Normal'}
 - Feed Status: ${freshnessCitation}
@@ -128,7 +129,7 @@ Keep your reply concise (2-4 sentences), factual, directly answer the rider's qu
       reply,
       dataCitations: [
         { source: 'NVIDIA Nemotron', metric: nebiusClient.getUltraModel() },
-        { source: 'Primary Schedule', metric: `${primary.departureTime} AM` },
+        { source: 'Primary Schedule', metric: formatTime12(primary.departureTime) },
         { source: 'Buffer Margin', metric: `+${primary.bufferMinutes}m` },
         ...sharedCitations,
       ],

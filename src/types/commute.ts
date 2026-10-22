@@ -9,10 +9,16 @@ export interface CommuteProfile {
   origin: {
     name: string;
     coordinates?: [number, number]; // [lng, lat]
+    stopId?: string;
+    agency?: string;
+    mode?: TransitMode;
   };
   destination: {
     name: string;
     coordinates?: [number, number];
+    stopId?: string;
+    agency?: string;
+    mode?: TransitMode;
   };
   arriveByTime: string; // e.g. "09:00"
   acceptedModes: TransitMode[];

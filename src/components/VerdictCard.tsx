@@ -11,13 +11,15 @@ import {
   Sparkles
 } from 'lucide-react';
 import { Verdict, RouteCandidate } from '@/types/commute';
+import { formatTime12 } from '@/lib/time';
 
 interface VerdictCardProps {
   verdict: Verdict;
+  targetArrivalTime: string;
   onSelectRoute?: (route: RouteCandidate) => void;
 }
 
-export function VerdictCard({ verdict, onSelectRoute }: VerdictCardProps) {
+export function VerdictCard({ verdict, targetArrivalTime, onSelectRoute }: VerdictCardProps) {
   const isComfortable = verdict.state === 'comfortable';
   const isTight = verdict.state === 'tight';
   const isReroute = verdict.state === 'reroute';
@@ -80,7 +82,7 @@ export function VerdictCard({ verdict, onSelectRoute }: VerdictCardProps) {
             <p className="text-xs font-semibold text-zinc-900 max-w-[90px] truncate" title={firstLeg?.fromName}>
               {firstLeg?.fromName || 'Origin'}
             </p>
-            <p className="text-xs font-bold text-zinc-900">{verdict.leaveByTime} AM</p>
+            <p className="text-xs font-bold text-zinc-900">{formatTime12(verdict.leaveByTime)}</p>
             <p className="text-[10px] text-zinc-500">Recommended</p>
           </div>
 
@@ -107,7 +109,7 @@ export function VerdictCard({ verdict, onSelectRoute }: VerdictCardProps) {
             <p className="text-xs font-semibold text-zinc-900 max-w-[90px] truncate" title={lastLeg?.toName}>
               {lastLeg?.toName || 'Destination'}
             </p>
-            <p className="text-xs font-bold text-zinc-900">09:00 AM</p>
+            <p className="text-xs font-bold text-zinc-900">{formatTime12(targetArrivalTime)}</p>
             <p className="text-[10px] text-zinc-500">Target</p>
           </div>
         </div>
@@ -120,7 +122,7 @@ export function VerdictCard({ verdict, onSelectRoute }: VerdictCardProps) {
             Leave-By Time
           </p>
           <p className="text-lg font-bold text-zinc-900">
-            {verdict.leaveByTime} <span className="text-xs font-normal text-zinc-500">AM</span>
+            {formatTime12(verdict.leaveByTime)}
           </p>
         </div>
 
@@ -186,7 +188,7 @@ export function VerdictCard({ verdict, onSelectRoute }: VerdictCardProps) {
           <div className="flex items-center gap-3 text-xs">
             <div>
               <span className="text-zinc-500">Depart: </span>
-              <span className="font-semibold text-zinc-900">{verdict.planBRoute.departureTime} AM</span>
+              <span className="font-semibold text-zinc-900">{formatTime12(verdict.planBRoute.departureTime)}</span>
             </div>
             {onSelectRoute && (
               <button

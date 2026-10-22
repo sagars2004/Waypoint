@@ -5,7 +5,7 @@ import { RouteCandidate, VerdictState } from '@/types/commute';
 
 // Mapbox GL is loaded via dynamic import to avoid SSR issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type MapboxGLType = typeof import('mapbox-gl');
+type MapboxGLType = typeof import('mapbox-gl').default;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type MapInstance = any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,16 +18,17 @@ interface MapboxMapProps {
   verdictState: VerdictState;
   originName: string;
   destinationName: string;
+  originCoordinates?: [number, number];
+  destinationCoordinates?: [number, number];
 }
 
 // --- Static GeoJSON Corridors ---
 // Real-world polyline coordinates for the Hoboken↔Midtown corridor
 const ROUTE_GEOJSON: Record<string, [number, number][]> = {
-  // PATH HOB→33rd: Hoboken Terminal → Journal Square → 33rd St
+  // PATH HOB→33rd: Hoboken Terminal → 33rd St
   'candidate-path-33': [
     [-74.0279, 40.7354], // Hoboken Terminal
-    [-74.0625, 40.7268], // Journal Square
-    [-74.0432, 40.7308], // Grove St (pass-through)
+    [-74.0185, 40.7390], // Hudson crossing
     [-74.0016, 40.7505], // 14th St (midpoint underwater)
     [-73.9887, 40.7484], // 9th St
     [-73.9890, 40.7502], // 14th St Station
@@ -75,12 +76,10 @@ const ROUTE_GEOJSON: Record<string, [number, number][]> = {
   ],
   // JC PATH to WTC
   'candidate-path-wtc': [
-    [-74.0330, 40.7176], // Exchange Place
-    [-74.0252, 40.7127], // Grove St PATH
-    [-74.0167, 40.7141], // Journal Square approach (WTC line)
+    [-74.0336, 40.7168], // Exchange Place
+    [-74.0167, 40.7141], // Hudson crossing
     [-74.0122, 40.7098], // Under Hudson
-    [-74.0118, 40.7124], // WTC approaches
-    [-74.0139, 40.7127], // World Trade Center
+    [-74.0090, 40.7126], // World Trade Center
   ],
   // JC Ferry: Paulus Hook → Brookfield Place
   'candidate-ferry-bpc': [
@@ -127,13 +126,45 @@ function getRouteColor(route: RouteCandidate): string {
   return primaryLeg?.lineColor ?? ROUTE_COLORS[primaryLeg?.mode ?? 'bus'] ?? '#64748b';
 }
 
-function getCenterForRoutes(primaryId: string): { center: [number, number]; zoom: number } {
+function getCenterForRoutes(primaryId: string, originCoordinates?: [number, number], destinationCoordinates?: [number, number]): { center: [number, number]; zoom: number } {
+  if (originCoordinates && destinationCoordinates) {
+    const span = Math.max(
+      Math.abs(destinationCoordinates[0] - originCoordinates[0]),
+      Math.abs(destinationCoordinates[1] - originCoordinates[1]),
+    );
+    return {
+      center: [
+        (originCoordinates[0] + destinationCoordinates[0]) / 2,
+        (originCoordinates[1] + destinationCoordinates[1]) / 2,
+      ],
+      zoom: span > 0.5 ? 9.5 : span > 0.15 ? 11 : 12.5,
+    };
+  }
   // JC corridor center
   if (primaryId.includes('wtc') || primaryId.includes('bpc')) {
     return { center: [-74.025, 40.725], zoom: 12.5 };
   }
   // Hoboken↔Midtown corridor center
   return { center: [-74.018, 40.742], zoom: 11.8 };
+}
+
+function getCoordinatesForRoute(
+  route: RouteCandidate,
+  originCoordinates?: [number, number],
+  destinationCoordinates?: [number, number],
+): [number, number][] {
+  const legCoordinates = route.legs.find((leg) => leg.coordinates && leg.coordinates.length >= 2)?.coordinates;
+  if (legCoordinates) return legCoordinates;
+
+  const staticCoordinates = ROUTE_GEOJSON[route.id];
+  if (!staticCoordinates) {
+    return [originCoordinates ?? [-74.0289, 40.7357], destinationCoordinates ?? [-73.9876, 40.7495]];
+  }
+
+  const coordinates = [...staticCoordinates] as [number, number][];
+  if (originCoordinates) coordinates[0] = originCoordinates;
+  if (destinationCoordinates) coordinates[coordinates.length - 1] = destinationCoordinates;
+  return coordinates;
 }
 
 export function MapboxMap({
@@ -143,6 +174,8 @@ export function MapboxMap({
   verdictState,
   originName,
   destinationName,
+  originCoordinates,
+  destinationCoordinates,
 }: MapboxMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapInstance>(null);
@@ -187,16 +220,16 @@ export function MapboxMap({
 
     async function initMap() {
       try {
-        mapboxgl = await import('mapbox-gl');
+        // Turbopack returns an ES module namespace; Mapbox's API is on default.
+        mapboxgl = (await import('mapbox-gl')).default;
         if (destroyed) return;
 
-        // @ts-expect-error — mapbox-gl types
         mapboxgl.accessToken = token;
 
         // Import CSS on first load
         await import('mapbox-gl/dist/mapbox-gl.css');
 
-        const { center, zoom } = getCenterForRoutes(primaryRoute.id);
+        const { center, zoom } = getCenterForRoutes(primaryRoute.id, originCoordinates, destinationCoordinates);
 
         const map: MapInstance = new mapboxgl.Map({
           container: containerRef.current!,
@@ -215,8 +248,8 @@ export function MapboxMap({
         map.on('load', () => {
           if (destroyed) return;
           setMapLoaded(true);
-          renderRoutes(map, mapboxgl, primaryRoute, planBRoute, selectedRoute, verdictState);
-          renderStations(map, mapboxgl, primaryRoute, planBRoute, originName, destinationName);
+          renderRoutes(map, mapboxgl, primaryRoute, planBRoute, selectedRoute, verdictState, originCoordinates, destinationCoordinates);
+          renderStations(map, mapboxgl, primaryRoute, planBRoute, originName, destinationName, originCoordinates, destinationCoordinates);
         });
 
         map.on('error', (e: Error) => {
@@ -245,8 +278,10 @@ export function MapboxMap({
   // Update routes when primary/planB/selected/verdict changes
   const updateRoutes = useCallback(async () => {
     if (!mapRef.current || !mapLoaded) return;
-    const mapboxgl = await import('mapbox-gl');
+    const mapboxgl = (await import('mapbox-gl')).default;
     const map = mapRef.current;
+    const { center, zoom } = getCenterForRoutes(primaryRoute.id, originCoordinates, destinationCoordinates);
+    map.flyTo({ center, zoom, duration: 0 });
 
     // Remove existing layers/sources
     ['primary-route', 'planb-route', 'primary-route-outline', 'planb-route-outline'].forEach((id) => {
@@ -263,17 +298,17 @@ export function MapboxMap({
       if (map.getSource(id)) map.removeSource(id);
     });
 
-    renderRoutes(map, mapboxgl, primaryRoute, planBRoute, selectedRoute, verdictState);
-    renderStations(map, mapboxgl, primaryRoute, planBRoute, originName, destinationName);
-  }, [mapLoaded, primaryRoute, planBRoute, selectedRoute, verdictState, originName, destinationName]);
+    renderRoutes(map, mapboxgl, primaryRoute, planBRoute, selectedRoute, verdictState, originCoordinates, destinationCoordinates);
+    renderStations(map, mapboxgl, primaryRoute, planBRoute, originName, destinationName, originCoordinates, destinationCoordinates);
+  }, [mapLoaded, primaryRoute, planBRoute, selectedRoute, verdictState, originName, destinationName, originCoordinates, destinationCoordinates]);
 
   useEffect(() => {
     updateRoutes();
   }, [updateRoutes]);
 
   // Error/fallback state — show SVG if no token or map failed
-  if (!process.env.NEXT_PUBLIC_MAPBOX_TOKEN || mapError === 'no-token') {
-    return <FallbackMap primaryRoute={primaryRoute} planBRoute={planBRoute} selectedRoute={selectedRoute} originName={originName} destinationName={destinationName} verdictState={verdictState} dimensions={dimensions} containerRef={containerRef} />;
+  if (!process.env.NEXT_PUBLIC_MAPBOX_TOKEN || mapError) {
+    return <FallbackMap primaryRoute={primaryRoute} planBRoute={planBRoute} selectedRoute={selectedRoute} originName={originName} destinationName={destinationName} verdictState={verdictState} dimensions={dimensions} containerRef={containerRef} mapError={Boolean(mapError)} />;
   }
 
   return (
@@ -357,10 +392,12 @@ function renderRoutes(
   planBRoute: RouteCandidate | undefined,
   selectedRoute: RouteCandidate,
   verdictState: VerdictState,
+  originCoordinates?: [number, number],
+  destinationCoordinates?: [number, number],
 ) {
   void mapboxgl; // suppress unused warning — used via map API
-  const primaryCoords = ROUTE_GEOJSON[primaryRoute.id] ?? ROUTE_GEOJSON['candidate-path-33'];
-  const planBCoords = planBRoute ? (ROUTE_GEOJSON[planBRoute.id] ?? null) : null;
+  const primaryCoords = getCoordinatesForRoute(primaryRoute, originCoordinates, destinationCoordinates);
+  const planBCoords = planBRoute ? getCoordinatesForRoute(planBRoute, originCoordinates, destinationCoordinates) : null;
   const primaryColor = getRouteColor(primaryRoute);
   const planBColor = planBRoute ? getRouteColor(planBRoute) : '#94a3b8';
   const verdictColor = VERDICT_GLOW[verdictState];
@@ -444,10 +481,12 @@ function renderStations(
   planBRoute: RouteCandidate | undefined,
   originName: string,
   destinationName: string,
+  originCoordinates?: [number, number],
+  destinationCoordinates?: [number, number],
 ) {
   void mapboxgl;
 
-  const primaryCoords = ROUTE_GEOJSON[primaryRoute.id] ?? ROUTE_GEOJSON['candidate-path-33'];
+  const primaryCoords = getCoordinatesForRoute(primaryRoute, originCoordinates, destinationCoordinates);
   const originCoord = primaryCoords[0];
   const destCoord = primaryCoords[primaryCoords.length - 1];
 
@@ -590,6 +629,7 @@ interface FallbackMapProps {
   destinationName: string;
   dimensions: { width: number; height: number };
   containerRef: React.RefObject<HTMLDivElement | null>;
+  mapError?: boolean;
 }
 
 function FallbackMap({
@@ -601,6 +641,7 @@ function FallbackMap({
   destinationName,
   dimensions,
   containerRef,
+  mapError = false,
 }: FallbackMapProps) {
   const isPrimary = selectedRoute.id === primaryRoute.id;
   const verdictColor = VERDICT_GLOW[verdictState];
@@ -749,10 +790,10 @@ function FallbackMap({
         </div>
       </div>
 
-      {/* No token warning */}
+      {/* Map availability warning */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
         <div className="px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-700 font-medium shadow-sm">
-          Add <code className="font-mono bg-amber-100 px-1 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env for the live map
+          {mapError ? 'Live map unavailable — showing route preview' : <>Add <code className="font-mono bg-amber-100 px-1 rounded">NEXT_PUBLIC_MAPBOX_TOKEN</code> to .env for the live map</>}
         </div>
       </div>
     </div>

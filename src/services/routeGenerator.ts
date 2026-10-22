@@ -5,6 +5,20 @@ import {
 } from '@/types/schemas';
 import { RiskScorer } from './riskScorer';
 
+function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function formatMinutes(value: number): string {
+  const normalized = ((value % 1440) + 1440) % 1440;
+  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
+}
+
+function addMinutes(value: string, amount: number): string {
+  return formatMinutes(timeToMinutes(value) + amount);
+}
+
 export class RouteGenerator {
   /**
    * Generates candidate routes for a given commute profile and feed snapshot
@@ -15,11 +29,18 @@ export class RouteGenerator {
   ): RouteCandidate[] {
     const isJC = profile.origin.name.toLowerCase().includes('exchange') ||
                  profile.origin.name.toLowerCase().includes('jersey city') ||
-                 profile.id.includes('jc');
+                 profile.id.includes('jc') ||
+                 ['exchange-place', 'grove-street', 'journal-square', 'journal-square-bus'].includes(profile.origin.stopId ?? '');
+
+    const hasCustomStops = Boolean(profile.origin.stopId || profile.destination.stopId) &&
+      !(['hoboken-terminal'].includes(profile.origin.stopId ?? '') && ['herald-square-subway', '33rd-street-path'].includes(profile.destination.stopId ?? '')) &&
+      !(isJC && ['world-trade-center', 'fulton-st-subway', 'brookfield-ferry'].includes(profile.destination.stopId ?? ''));
 
     let rawCandidates: Omit<RouteCandidate, 'bufferMinutes' | 'riskScore'>[] = [];
 
-    if (isJC) {
+    if (hasCustomStops) {
+      rawCandidates = this.buildCustomCandidates(profile, snapshot);
+    } else if (isJC) {
       rawCandidates = this.buildJCCorridorCandidates(profile, snapshot);
     } else {
       // Default / Golden Corridor: Hoboken to Midtown
@@ -52,9 +73,18 @@ export class RouteGenerator {
         bufferMinutes
       );
 
+      const scheduleOffset = timeToMinutes(leaveByTime) - timeToMinutes(cand.departureTime);
+      const legs = cand.legs.map((leg) => ({
+        ...leg,
+        departureTime: addMinutes(leg.departureTime, scheduleOffset),
+        arrivalTime: addMinutes(leg.arrivalTime, scheduleOffset),
+      }));
+
       return {
         ...cand,
         departureTime: leaveByTime,
+        arrivalTime: addMinutes(leaveByTime, cand.totalDurationMinutes),
+        legs,
         bufferMinutes,
         riskScore,
       };
@@ -101,6 +131,61 @@ export class RouteGenerator {
   }
 
   // --- Corridor Builders ---
+
+  private static buildCustomCandidates(
+    profile: CommuteProfile,
+    snapshot: FeedSnapshot
+  ): Omit<RouteCandidate, 'bufferMinutes' | 'riskScore'>[] {
+    const origin = profile.origin.coordinates ?? [-74.0289, 40.7357];
+    const destination = profile.destination.coordinates ?? [-73.9876, 40.7495];
+    const toRadians = (value: number) => (value * Math.PI) / 180;
+    const latDistance = toRadians(destination[1] - origin[1]);
+    const lngDistance = toRadians(destination[0] - origin[0]);
+    const distanceKm = 6371 * 2 * Math.asin(Math.sqrt(
+      Math.sin(latDistance / 2) ** 2 +
+      Math.cos(toRadians(origin[1])) * Math.cos(toRadians(destination[1])) * Math.sin(lngDistance / 2) ** 2
+    ));
+    const baseDuration = Math.max(8, Math.round((distanceKm / 30) * 60 + 6));
+    const modes: CommuteProfile['acceptedModes'] = profile.acceptedModes.filter((mode) => mode !== 'driving').slice(0, 3);
+    if (modes.length === 0) modes.push('rail');
+    const modeNames: Record<string, string> = {
+      path: 'PATH',
+      rail: profile.origin.agency || 'Rail',
+      bus: profile.origin.agency || 'Bus',
+      ferry: 'Ferry',
+    };
+
+    return modes.map((mode, index) => {
+      const duration = baseDuration + index * 4;
+      const reliability = snapshot.reliabilityOtp[profile.origin.stopId ?? 'custom'] ?? Math.max(78, 93 - index * 5);
+      const line = `${modeNames[mode] ?? mode} · ${profile.origin.name} → ${profile.destination.name}`;
+      return {
+        id: `custom-${mode}-${index}`,
+        name: `${modeNames[mode] ?? mode} from ${profile.origin.name}`,
+        summary: `${profile.origin.name} → ${profile.destination.name}`,
+        departureTime: '08:00',
+        arrivalTime: '08:00',
+        totalDurationMinutes: duration,
+        transfersCount: index > 0 ? 1 : 0,
+        estimatedCost: mode === 'ferry' ? 8 : mode === 'rail' || mode === 'path' ? 2.75 : 3.5,
+        reliabilityRate: reliability,
+        legs: [{
+          id: `custom-leg-${mode}-${index}`,
+          mode,
+          line,
+          lineColor: mode === 'ferry' ? '#0d9488' : mode === 'bus' ? '#8b5cf6' : mode === 'path' ? '#0284c7' : '#e11d48',
+          fromName: profile.origin.name,
+          toName: profile.destination.name,
+          departureTime: '08:00',
+          arrivalTime: '08:00',
+          durationMinutes: duration,
+          delayMinutes: 0,
+          statusText: 'Estimated from selected stops',
+          coordinates: [origin, destination],
+        }],
+      };
+    });
+  }
 
   private static buildHobokenMidtownCandidates(
     profile: CommuteProfile,

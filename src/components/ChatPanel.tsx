@@ -3,6 +3,7 @@
 import React, { useRef, useState } from 'react';
 import { Send, MessageCircle, Navigation, User, Database } from 'lucide-react';
 import { ChatMessage, CommuteProfile, Verdict } from '@/types/commute';
+import { formatTime12 } from '@/lib/time';
 
 interface ChatPanelProps {
   verdict: Verdict;
@@ -15,7 +16,7 @@ export function ChatPanel({ verdict, profile, scenario }: ChatPanelProps) {
     {
       id: 'm-1',
       sender: 'agent',
-      text: `Hello! I'm monitoring your corridor (${verdict.primaryRoute.name}). Current verdict is ${verdict.state.toUpperCase()} with leave-by at ${verdict.leaveByTime} AM. What would you like to check?`,
+      text: `Hello! I'm monitoring your corridor (${verdict.primaryRoute.name}). Current verdict is ${verdict.state.toUpperCase()} with leave-by at ${formatTime12(verdict.leaveByTime)}. What would you like to check?`,
       timestamp: '08:00 AM',
       dataCitations: [
         { source: 'PATH Live Feed', metric: '4-min headway' },
@@ -46,7 +47,7 @@ export function ChatPanel({ verdict, profile, scenario }: ChatPanelProps) {
       id: nextMessageId('user'),
       sender: 'user',
       text: query,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
     };
 
     setMessages((prev) => [...prev, userMsg]);
@@ -75,7 +76,7 @@ export function ChatPanel({ verdict, profile, scenario }: ChatPanelProps) {
         id: nextMessageId('agent'),
         sender: 'agent',
         text: data.reply || 'Live telemetry retrieved.',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
         dataCitations: data.dataCitations || [],
         uncertainty: data.uncertainty,
       };
@@ -86,8 +87,8 @@ export function ChatPanel({ verdict, profile, scenario }: ChatPanelProps) {
       const fallbackMsg: ChatMessage = {
         id: nextMessageId('agent'),
         sender: 'agent',
-        text: `Based on the displayed commute snapshot, ${verdict.primaryRoute.name} is recommended for departure at ${verdict.leaveByTime} AM with an allocated safety buffer of ${verdict.primaryRoute.bufferMinutes} minutes.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        text: `Based on the displayed commute snapshot, ${verdict.primaryRoute.name} is recommended for departure at ${formatTime12(verdict.leaveByTime)} with an allocated safety buffer of ${verdict.primaryRoute.bufferMinutes} minutes.`,
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
         dataCitations: [
           { source: 'Buffer Margin', metric: `+${verdict.primaryRoute.bufferMinutes}m` },
           { source: 'Line Reliability', metric: `${verdict.primaryRoute.reliabilityRate}%` },

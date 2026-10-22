@@ -1,22 +1,15 @@
 'use client';
 
 import React from 'react';
-import { Navigation, SlidersHorizontal, Radio } from 'lucide-react';
-import { CommuteProfile } from '@/types/commute';
+import { Navigation, SlidersHorizontal } from 'lucide-react';
 
 interface HeaderProps {
-  currentProfile: CommuteProfile;
-  profiles: CommuteProfile[];
-  onSelectProfile: (profile: CommuteProfile) => void;
   activeScenario: 'normal' | 'delay' | 'reroute';
   onChangeScenario: (scenario: 'normal' | 'delay' | 'reroute') => void;
   onOpenSettings: () => void;
 }
 
 export function Header({
-  currentProfile,
-  profiles,
-  onSelectProfile,
   activeScenario,
   onChangeScenario,
   onOpenSettings,
@@ -44,31 +37,8 @@ export function Header({
           Built for the Nebius x NVIDIA Global AI Hackathon
         </div>
 
-        {/* Right: Corridor & Replay Switcher */}
+        {/* Right: Replay switcher */}
         <div className="flex items-center gap-2.5">
-          {/* Corridor Dropdown */}
-          <div className="relative">
-            <select
-              value={currentProfile.id}
-              onChange={(e) => {
-                const p = profiles.find((item) => item.id === e.target.value);
-                if (p) onSelectProfile(p);
-              }}
-              className="bg-zinc-50 text-xs font-medium text-zinc-800 border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-zinc-900 appearance-none pr-7 cursor-pointer hover:bg-zinc-100 transition"
-            >
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-zinc-500">
-              <svg className="w-3 h-3 fill-current" viewBox="0 0 20 20">
-                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-              </svg>
-            </div>
-          </div>
-
           {/* Minimalist Scenario Toggle */}
           <div className="flex items-center rounded-lg bg-zinc-100 border border-zinc-200 p-0.5 text-xs">
             <button

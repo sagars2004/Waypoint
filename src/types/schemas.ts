@@ -82,10 +82,16 @@ export const CommuteProfileSchema = z.object({
   origin: z.object({
     name: z.string(),
     coordinates: z.tuple([z.number(), z.number()]).optional(),
+    stopId: z.string().optional(),
+    agency: z.string().optional(),
+    mode: TransitModeSchema.optional(),
   }),
   destination: z.object({
     name: z.string(),
     coordinates: z.tuple([z.number(), z.number()]).optional(),
+    stopId: z.string().optional(),
+    agency: z.string().optional(),
+    mode: TransitModeSchema.optional(),
   }),
   arriveByTime: z.string(), // "09:00"
   acceptedModes: z.array(TransitModeSchema).min(1),
