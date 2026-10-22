@@ -20,6 +20,12 @@ export const ConfidenceLevelSchema = z.enum([
   'low',
 ]);
 
+export const LeadAgentOutputSchema = z.object({
+  state: VerdictStateSchema,
+  confidence: ConfidenceLevelSchema,
+  reason: z.string().min(5),
+}).strict();
+
 export const RouteLegSchema = z.object({
   id: z.string(),
   mode: TransitModeSchema,
@@ -132,6 +138,7 @@ export const FeedSnapshotSchema = z.object({
 export type TransitMode = z.infer<typeof TransitModeSchema>;
 export type VerdictState = z.infer<typeof VerdictStateSchema>;
 export type ConfidenceLevel = z.infer<typeof ConfidenceLevelSchema>;
+export type LeadAgentOutput = z.infer<typeof LeadAgentOutputSchema>;
 export type RouteLeg = z.infer<typeof RouteLegSchema>;
 export type RouteCandidate = z.infer<typeof RouteCandidateSchema>;
 export type TransitAlert = z.infer<typeof TransitAlertSchema>;

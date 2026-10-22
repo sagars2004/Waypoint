@@ -58,12 +58,9 @@ export class FeedManager {
    * - Over 300s or outage: offline (visible warning banner)
    */
   public evaluateSources(snapshot: FeedSnapshot, simulatedNowMs?: number): FeedSourceStatus[] {
-    const now = simulatedNowMs || Date.now();
     const fetchedMs = new Date(snapshot.fetchedAt).getTime();
-    // In replay mode, simulate realistic live age (12s to 45s) unless explicitly testing outage
-    const elapsedSeconds = snapshot.scenario === 'outage' 
-      ? 360 
-      : Math.floor((now - fetchedMs) / 1000) % 60 + 12;
+    const now = simulatedNowMs ?? fetchedMs;
+    const elapsedSeconds = Math.max(0, Math.floor((now - fetchedMs) / 1000));
 
     const sources = [
       {
@@ -76,19 +73,19 @@ export class FeedManager {
         source: 'NJ Transit Rail & Bus',
         agency: 'NJ Transit',
         isDown: snapshot.scenario === 'outage',
-        age: snapshot.scenario === 'outage' ? 420 : elapsedSeconds + 8,
+        age: snapshot.scenario === 'outage' ? Math.max(301, elapsedSeconds) : elapsedSeconds,
       },
       {
         source: 'NY Waterway Ferry',
         agency: 'NY Waterway',
         isDown: false,
-        age: elapsedSeconds + 4,
+        age: elapsedSeconds,
       },
       {
         source: 'NYC DOT Traffic',
         agency: 'NYC DOT',
         isDown: false,
-        age: elapsedSeconds + 15,
+        age: elapsedSeconds,
       },
     ];
 
@@ -105,7 +102,7 @@ export class FeedManager {
         agency: s.agency,
         status,
         lastAgeSeconds: s.age,
-        lastUpdated: `${s.age}s ago`,
+        lastUpdated: new Date(Math.max(fetchedMs, now - s.age * 1000)).toISOString(),
       };
     });
   }

@@ -93,4 +93,5 @@ export interface ChatMessage {
     source: string;
     metric: string;
   }[];
+  uncertainty?: string;
 }

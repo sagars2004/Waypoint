@@ -36,4 +36,27 @@ describe('POST /api/chat profile context', () => {
     expect(response.status).toBe(200);
     expect(payload.reply).toContain('PATH Direct to WTC');
   });
+
+  it('reports degraded confidence when a replay source is offline', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'What should I take?',
+          profile: SAMPLE_PROFILES[0],
+          scenario: 'outage',
+        }),
+      })
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.uncertainty).toContain('NJ Transit Rail & Bus');
+    expect(payload.dataCitations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: 'Feed Freshness' }),
+      ])
+    );
+  });
 });

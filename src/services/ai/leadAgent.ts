@@ -5,6 +5,7 @@ import {
   ConfidenceLevel, 
   FeedSourceStatus 
 } from '@/types/schemas';
+import { LeadAgentOutputSchema } from '@/types/schemas';
 import { nebiusClient } from './nebiusClient';
 import { Client as LangSmithClient } from 'langsmith';
 
@@ -25,6 +26,57 @@ export interface LeadAgentVerdictOutput {
   reason: string;
   modelUsed: string;
   traceUrl?: string;
+}
+
+const CONFIDENCE_RANK: Record<ConfidenceLevel, number> = {
+  low: 0,
+  medium: 1,
+  high: 2,
+};
+
+function capConfidence(
+  modelConfidence: ConfidenceLevel,
+  baseConfidence: ConfidenceLevel
+): ConfidenceLevel {
+  return CONFIDENCE_RANK[modelConfidence] <= CONFIDENCE_RANK[baseConfidence]
+    ? modelConfidence
+    : baseConfidence;
+}
+
+function deterministicReason(
+  input: LeadAgentVerdictInput,
+  primaryCandidate: RouteCandidate
+): string {
+  if (input.baseVerdictState === 'reroute') {
+    return `Primary line suspended due to track/power emergency. Reroute immediately to ${primaryCandidate.name} at ${primaryCandidate.departureTime} AM.`;
+  }
+  if (input.baseVerdictState === 'tight') {
+    return `Corridor signal delays are present. Leave by ${primaryCandidate.departureTime} AM to maintain an arrival safety margin.`;
+  }
+  return `${primaryCandidate.name} is running smoothly with ${primaryCandidate.reliabilityRate}% historical reliability. Allocated buffer of ${primaryCandidate.bufferMinutes} minutes ensures comfortable on-time arrival.`;
+}
+
+function normalizeTime(time: string): string {
+  const [hours, minutes] = time.trim().split(':').map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return time;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function hasGroundedTimes(reason: string, input: LeadAgentVerdictInput): boolean {
+  const allowedTimes = new Set([
+    normalizeTime(input.arriveByTime),
+    ...input.candidates.flatMap((candidate) => [
+      normalizeTime(candidate.departureTime),
+      normalizeTime(candidate.arrivalTime),
+      ...candidate.legs.flatMap((leg) => [
+        normalizeTime(leg.departureTime),
+        normalizeTime(leg.arrivalTime),
+      ]),
+    ]),
+  ]);
+  const citedTimes = reason.match(/\b\d{1,2}:\d{2}\s?(?:AM|PM)?\b/gi) || [];
+
+  return citedTimes.every((time) => allowedTimes.has(normalizeTime(time.slice(0, 5))));
 }
 
 export class LeadAgent {
@@ -58,20 +110,15 @@ export class LeadAgent {
     const primaryCandidate = input.candidates[0];
 
     // If Nebius is not configured, fallback to rule-synthesized rationale immediately
-    if (!client || !primaryCandidate) {
-      let defaultReason = '';
-      if (input.baseVerdictState === 'reroute') {
-        defaultReason = `Primary line suspended due to track/power emergency. Reroute immediately to ${primaryCandidate.name} at ${primaryCandidate.departureTime} AM.`;
-      } else if (input.baseVerdictState === 'tight') {
-        defaultReason = `Corridor signal delays present. Leave by ${primaryCandidate.departureTime} AM to maintain an arrival safety margin.`;
-      } else {
-        defaultReason = `${primaryCandidate.name} is running smoothly with ${primaryCandidate.reliabilityRate}% historical reliability. Allocated buffer of ${primaryCandidate.bufferMinutes} minutes ensures comfortable on-time arrival.`;
-      }
+    if (!primaryCandidate) {
+      throw new Error('Cannot evaluate a verdict without a primary route.');
+    }
 
+    if (!client) {
       return {
         state: input.baseVerdictState,
         confidence: input.baseConfidence,
-        reason: defaultReason,
+        reason: deterministicReason(input, primaryCandidate),
         modelUsed: 'Deterministic Engine (Rules Fallback)',
       };
     }
@@ -124,12 +171,17 @@ CRITICAL RULES:
 
       const responseText = completion.choices[0]?.message?.content || '{}';
       const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-      const parsed = JSON.parse(cleanJson);
+      const parsed = LeadAgentOutputSchema.parse(JSON.parse(cleanJson));
+
+      if (!hasGroundedTimes(parsed.reason, input)) {
+        throw new Error('Lead agent reason cited a time not present in route data.');
+      }
 
       return {
-        state: parsed.state || input.baseVerdictState,
-        confidence: parsed.confidence || input.baseConfidence,
-        reason: parsed.reason || `${primaryCandidate.name} leave by ${primaryCandidate.departureTime} AM.`,
+        // Deterministic scoring owns the verdict state; the model only explains it.
+        state: input.baseVerdictState,
+        confidence: capConfidence(parsed.confidence, input.baseConfidence),
+        reason: parsed.reason,
         modelUsed: `NVIDIA Nemotron (${model}) via Nebius`,
       };
     } catch (err) {
@@ -137,7 +189,7 @@ CRITICAL RULES:
       return {
         state: input.baseVerdictState,
         confidence: input.baseConfidence,
-        reason: `${primaryCandidate.name} running on schedule. Allocated buffer of ${primaryCandidate.bufferMinutes} minutes ensures on-time arrival.`,
+        reason: deterministicReason(input, primaryCandidate),
         modelUsed: 'Deterministic Fallback (API error)',
       };
     }

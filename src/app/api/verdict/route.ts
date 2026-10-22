@@ -69,6 +69,10 @@ export async function POST(request: Request) {
           snapshot.alerts.push(...tavilyAlerts);
         }
       }
+
+      // The overlays above form one live request snapshot. Use its ingestion time
+      // for freshness rather than the replay fixture's historical timestamp.
+      snapshot.fetchedAt = new Date().toISOString();
     }
 
     // Deduplicate alerts by ID and title to guarantee unique keys and eliminate duplicates
@@ -80,7 +84,10 @@ export async function POST(request: Request) {
       return true;
     });
 
-    const feedStatuses = feedManager.evaluateSources(snapshot);
+    const feedStatuses = feedManager.evaluateSources(
+      snapshot,
+      isLiveMode ? Date.now() : new Date(snapshot.fetchedAt).getTime()
+    );
 
     // 2. Generate and score candidates deterministically
     const candidates = RouteGenerator.generateCandidates(profile, snapshot);
@@ -124,7 +131,9 @@ export async function POST(request: Request) {
       planBRoute,
       allCandidates: candidates,
       alerts: snapshot.alerts,
-      freshnessTimestamp: `Updated ${feedStatuses[0]?.lastAgeSeconds || 14}s ago`,
+      freshnessTimestamp: `Updated ${Math.max(
+        ...feedStatuses.map((status) => status.lastAgeSeconds)
+      )}s ago`,
       feedStatus: feedStatuses,
     };
 

@@ -24,6 +24,24 @@ export async function POST(request: Request) {
     const candidates = RouteGenerator.generateCandidates(profile, snapshot);
     const primary = candidates[0];
     const planB = candidates[1];
+    const feedStatuses = feedManager.evaluateSources(
+      snapshot,
+      new Date(snapshot.fetchedAt).getTime()
+    );
+    const unavailableSources = feedStatuses.filter((status) => status.status === 'offline');
+    const staleSources = feedStatuses.filter((status) => status.status === 'stale');
+    const uncertainty = unavailableSources.length > 0
+      ? `Confidence is limited because ${unavailableSources.map((status) => status.source).join(', ')} is offline.`
+      : staleSources.length > 0
+        ? `Confidence is reduced because ${staleSources.map((status) => status.source).join(', ')} is stale.`
+        : `Data is from the ${snapshot.source === 'REPLAY_FIXTURE' ? 'replay snapshot' : 'current feed snapshot'} at ${snapshot.fetchedAt}.`;
+    const freshnessCitation = feedStatuses
+      .map((status) => `${status.source}: ${status.status}, ${status.lastAgeSeconds}s old`)
+      .join(' · ');
+    const sharedCitations = [
+      { source: 'Feed Freshness', metric: freshnessCitation },
+      { source: 'Active Alerts', metric: snapshot.alerts.length > 0 ? `${snapshot.alerts.length} alert(s)` : 'None' },
+    ];
 
     const client = nebiusClient.getClient();
 
@@ -34,10 +52,15 @@ export async function POST(request: Request) {
 
       const lower = message.toLowerCase();
       if (lower.includes('coffee')) {
-        reply = `You have an allocated safety buffer of ${primary.bufferMinutes} minutes before your recommended ${primary.departureTime} AM departure. A brief 4-5 minute coffee stop leaves you safely on schedule.`;
+        const coffeeStopMinutes = 5;
+        const remainingBuffer = primary.bufferMinutes - coffeeStopMinutes;
+        reply = remainingBuffer >= 0
+          ? `Your recommended ${primary.name} departure is ${primary.departureTime} AM with a ${primary.bufferMinutes}-minute safety buffer. A 5-minute coffee stop would leave approximately ${remainingBuffer} minutes of buffer.`
+          : `Your recommended ${primary.name} departure is ${primary.departureTime} AM with only a ${primary.bufferMinutes}-minute safety buffer. A 5-minute coffee stop would exceed that margin by ${Math.abs(remainingBuffer)} minutes.`;
         citations = [
           { source: 'Buffer Margin', metric: `+${primary.bufferMinutes}m buffer allocated` },
           { source: 'Target Arrival', metric: `${profile.arriveByTime} AM` },
+          ...sharedCitations,
         ];
       } else if (lower.includes('ferry')) {
         const ferry = candidates.find((candidate) =>
@@ -49,29 +72,32 @@ export async function POST(request: Request) {
             { source: 'Route Schedule', metric: `${ferry.departureTime} AM departure` },
             { source: 'Route Cost', metric: `$${ferry.estimatedCost.toFixed(2)}` },
             { source: 'Reliability OTP', metric: `${ferry.reliabilityRate}% on-time` },
+            ...sharedCitations,
           ];
         } else {
           reply = `There is no ferry option in your current commute profile and replay scenario.`;
-          citations = [{ source: 'Route Options', metric: 'No ferry candidate available' }];
+          citations = [{ source: 'Route Options', metric: 'No ferry candidate available' }, ...sharedCitations];
         }
       } else {
-        reply = `Based on live feed telemetry, ${primary.name} is scheduled to leave at ${primary.departureTime} AM with a ${primary.bufferMinutes}-minute buffer. Historical reliability on this line is ${primary.reliabilityRate}%.`;
+        reply = `Based on the current commute snapshot, ${primary.name} is scheduled to leave at ${primary.departureTime} AM with a ${primary.bufferMinutes}-minute buffer. Historical reliability on this line is ${primary.reliabilityRate}%.`;
         citations = [
           { source: 'Schedule Data', metric: `${primary.departureTime} AM departure` },
           { source: 'Reliability OTP', metric: `${primary.reliabilityRate}% on-time` },
+          ...sharedCitations,
         ];
       }
 
       return NextResponse.json({
         reply,
         dataCitations: citations,
+        uncertainty,
         modelUsed: 'Rule-Engine Fallback (Nebius key pending)',
       });
     }
 
     // Call Nemotron on Nebius Token Factory with grounded commute tools/context
-    const systemInstruction = `You are Waypoint's live NYC/NJ transit commute assistant powered by NVIDIA Nemotron on Nebius Token Factory.
-Ground your response strictly in the following live transit telemetry. NEVER invent departure times or durations.
+    const systemInstruction = `You are Waypoint's NYC/NJ transit commute assistant powered by NVIDIA Nemotron on Nebius Token Factory.
+Ground your response strictly in the following ${snapshot.source === 'REPLAY_FIXTURE' ? 'replay snapshot' : 'current feed snapshot'}. NEVER invent departure times or durations.
 
 CURRENT TELEMETRY DATA:
 - Corridor: ${profile.origin.name} to ${profile.destination.name}
@@ -80,8 +106,10 @@ CURRENT TELEMETRY DATA:
 - Plan B Option: ${planB ? `${planB.name} (Depart: ${planB.departureTime} AM, Travel: ${planB.totalDurationMinutes}m, Fare: $${planB.estimatedCost.toFixed(2)})` : 'None'}
 - Active Incidents: ${snapshot.alerts.length > 0 ? snapshot.alerts.map((a) => a.title).join(', ') : 'None'}
 - Weather: ${snapshot.weather ? `${snapshot.weather.temperatureF}°F, ${snapshot.weather.condition}, wind ${snapshot.weather.windSpeedMph}mph` : 'Normal'}
+- Feed Status: ${freshnessCitation}
+- Uncertainty: ${uncertainty}
 
-Keep your reply concise (2-4 sentences), factual, and directly answering the rider's question.`;
+Keep your reply concise (2-4 sentences), factual, directly answer the rider's question, and do not claim more certainty than the Uncertainty field allows.`;
 
     const completion = await client.chat.completions.create({
       model: nebiusClient.getUltraModel(),
@@ -102,7 +130,9 @@ Keep your reply concise (2-4 sentences), factual, and directly answering the rid
         { source: 'NVIDIA Nemotron', metric: nebiusClient.getUltraModel() },
         { source: 'Primary Schedule', metric: `${primary.departureTime} AM` },
         { source: 'Buffer Margin', metric: `+${primary.bufferMinutes}m` },
+        ...sharedCitations,
       ],
+      uncertainty,
       modelUsed: `NVIDIA Nemotron (${nebiusClient.getUltraModel()}) via Nebius`,
     });
   } catch (error) {

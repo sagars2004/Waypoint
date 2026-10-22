@@ -35,12 +35,23 @@ describe('FeedManager & Golden Replay Engine', () => {
 
   it('evaluates feed freshness status accurately according to PRD thresholds', () => {
     const normal = feedManager.getSnapshot('normal');
-    const sources = feedManager.evaluateSources(normal);
+    const fetchedAtMs = new Date(normal.fetchedAt).getTime();
+    const sources = feedManager.evaluateSources(normal, fetchedAtMs);
 
     expect(sources.length).toBe(4);
     const pathSource = sources.find((s) => s.source === 'PATH GTFS-RT');
     expect(pathSource).toBeDefined();
     expect(pathSource?.status).toBe('fresh');
+    expect(pathSource?.lastAgeSeconds).toBe(0);
+  });
+
+  it('applies the exact fresh, stale, and offline thresholds', () => {
+    const normal = feedManager.getSnapshot('normal');
+    const fetchedAtMs = new Date(normal.fetchedAt).getTime();
+
+    expect(feedManager.evaluateSources(normal, fetchedAtMs + 89_000)[0].status).toBe('fresh');
+    expect(feedManager.evaluateSources(normal, fetchedAtMs + 90_000)[0].status).toBe('stale');
+    expect(feedManager.evaluateSources(normal, fetchedAtMs + 301_000)[0].status).toBe('offline');
   });
 
   it('correctly flags offline status in degraded outage scenario (Feature F8)', () => {

@@ -77,6 +77,7 @@ export function ChatPanel({ verdict, profile, scenario }: ChatPanelProps) {
         text: data.reply || 'Live telemetry retrieved.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         dataCitations: data.dataCitations || [],
+        uncertainty: data.uncertainty,
       };
 
       setMessages((prev) => [...prev, agentMsg]);
@@ -85,12 +86,13 @@ export function ChatPanel({ verdict, profile, scenario }: ChatPanelProps) {
       const fallbackMsg: ChatMessage = {
         id: nextMessageId('agent'),
         sender: 'agent',
-        text: `Based on live feed telemetry, ${verdict.primaryRoute.name} is recommended for departure at ${verdict.leaveByTime} AM with an allocated safety buffer of ${verdict.primaryRoute.bufferMinutes} minutes.`,
+        text: `Based on the displayed commute snapshot, ${verdict.primaryRoute.name} is recommended for departure at ${verdict.leaveByTime} AM with an allocated safety buffer of ${verdict.primaryRoute.bufferMinutes} minutes.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         dataCitations: [
           { source: 'Buffer Margin', metric: `+${verdict.primaryRoute.bufferMinutes}m` },
           { source: 'Line Reliability', metric: `${verdict.primaryRoute.reliabilityRate}%` },
         ],
+        uncertainty: 'The chat service was unavailable; this answer uses the displayed verdict data.',
       };
       setMessages((prev) => [...prev, fallbackMsg]);
     } finally {
@@ -149,6 +151,10 @@ export function ChatPanel({ verdict, profile, scenario }: ChatPanelProps) {
                 }`}
               >
                 <p>{msg.text}</p>
+
+                {msg.uncertainty && (
+                  <p className="mt-2 text-[10px] text-zinc-500">Uncertainty: {msg.uncertainty}</p>
+                )}
 
                 {/* Data citations */}
                 {msg.dataCitations && msg.dataCitations.length > 0 && (
