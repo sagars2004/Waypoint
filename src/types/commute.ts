@@ -20,6 +20,7 @@ export interface CommuteProfile {
     agency?: string;
     mode?: TransitMode;
   };
+  departAtTime: string; // e.g. "17:30"
   arriveByTime: string; // e.g. "09:00"
   acceptedModes: TransitMode[];
   preferences: {
@@ -58,6 +59,8 @@ export interface RouteCandidate {
   riskScore: number;     // 0 to 100 (lower is safer)
   reliabilityRate: number; // e.g. 91 (91% on-time)
   bufferMinutes: number; // e.g. 8 mins safety margin
+  isFeasible?: boolean;
+  feasibilityReason?: string;
   legs: RouteLeg[];
   isPlanB?: boolean;
 }
@@ -76,6 +79,11 @@ export interface Verdict {
   state: VerdictState;
   confidence: ConfidenceLevel;
   leaveByTime: string; // "08:12"
+  requestedDepartureTime?: string;
+  targetArrivalTime?: string;
+  isFeasible?: boolean;
+  feasibilityReason?: string;
+  modelUsed?: string;
   countdownMinutes: number;
   reason: string;
   primaryRoute: RouteCandidate;

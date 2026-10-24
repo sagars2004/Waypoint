@@ -37,6 +37,7 @@ export function ChatPanel({ verdict, profile, scenario }: ChatPanelProps) {
     'Can I grab coffee and still make it?',
     'Is it worth taking the ferry today?',
     'Why did the departure time shift?',
+    'What can I do during my transfer buffer?',
   ];
 
   const handleSend = async (textToSend?: string) => {

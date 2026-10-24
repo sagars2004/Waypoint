@@ -153,8 +153,20 @@ function getCoordinatesForRoute(
   originCoordinates?: [number, number],
   destinationCoordinates?: [number, number],
 ): [number, number][] {
-  const legCoordinates = route.legs.find((leg) => leg.coordinates && leg.coordinates.length >= 2)?.coordinates;
-  if (legCoordinates) return legCoordinates;
+  const coordinateSegments = route.legs
+    .map((leg) => leg.coordinates)
+    .filter((coordinates): coordinates is [number, number][] => Boolean(coordinates && coordinates.length >= 2));
+  if (coordinateSegments.length > 0) {
+    const joinedCoordinates = coordinateSegments.reduce<[number, number][]>((joined, segment) => {
+      const nextSegment = joined.length > 0 && joined[joined.length - 1][0] === segment[0][0] && joined[joined.length - 1][1] === segment[0][1]
+        ? segment.slice(1)
+        : segment;
+      return [...joined, ...nextSegment];
+    }, []);
+    if (originCoordinates) joinedCoordinates[0] = originCoordinates;
+    if (destinationCoordinates) joinedCoordinates[joinedCoordinates.length - 1] = destinationCoordinates;
+    return joinedCoordinates;
+  }
 
   const staticCoordinates = ROUTE_GEOJSON[route.id];
   if (!staticCoordinates) {

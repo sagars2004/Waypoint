@@ -53,6 +53,8 @@ export const RouteCandidateSchema = z.object({
   riskScore: z.number().min(0).max(100),
   reliabilityRate: z.number().min(0).max(100),
   bufferMinutes: z.number().int(),
+  isFeasible: z.boolean().optional(),
+  feasibilityReason: z.string().optional(),
   legs: z.array(RouteLegSchema).min(1),
   isPlanB: z.boolean().optional(),
 });
@@ -93,6 +95,7 @@ export const CommuteProfileSchema = z.object({
     agency: z.string().optional(),
     mode: TransitModeSchema.optional(),
   }),
+  departAtTime: z.string().default('08:00'),
   arriveByTime: z.string(), // "09:00"
   acceptedModes: z.array(TransitModeSchema).min(1),
   preferences: z.object({
@@ -102,12 +105,41 @@ export const CommuteProfileSchema = z.object({
     allowFerries: z.boolean().default(true),
     allowDriving: z.boolean().default(false),
   }),
+}).superRefine((profile, context) => {
+  const toMinutes = (value: string) => {
+    const [hours, minutes] = value.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
+  if (toMinutes(profile.departAtTime) >= toMinutes(profile.arriveByTime)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['arriveByTime'],
+      message: 'Arrival time must be later than departure time.',
+    });
+  }
+
+  const sameCoordinates = profile.origin.coordinates && profile.destination.coordinates &&
+    profile.origin.coordinates[0] === profile.destination.coordinates[0] &&
+    profile.origin.coordinates[1] === profile.destination.coordinates[1];
+  if ((profile.origin.stopId && profile.origin.stopId === profile.destination.stopId) || sameCoordinates) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['destination'],
+      message: 'Origin and destination must be different stops.',
+    });
+  }
 });
 
 export const VerdictResponseSchema = z.object({
   state: VerdictStateSchema,
   confidence: ConfidenceLevelSchema,
   leaveByTime: z.string(),
+  requestedDepartureTime: z.string().optional(),
+  targetArrivalTime: z.string().optional(),
+  isFeasible: z.boolean().optional(),
+  feasibilityReason: z.string().optional(),
+  modelUsed: z.string().optional(),
   countdownMinutes: z.number().int(),
   reason: z.string().min(5),
   primaryRoute: RouteCandidateSchema,

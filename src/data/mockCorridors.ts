@@ -12,6 +12,7 @@ export const SAMPLE_PROFILES: CommuteProfile[] = [
       name: 'Midtown Manhattan (Herald Sq / 34th St)',
       coordinates: [-73.9876, 40.7495],
     },
+    departAtTime: '08:00',
     arriveByTime: '09:00',
     acceptedModes: ['path', 'rail', 'ferry', 'bus'],
     preferences: {
@@ -33,6 +34,7 @@ export const SAMPLE_PROFILES: CommuteProfile[] = [
       name: 'World Trade Center, Lower Manhattan',
       coordinates: [-74.0090, 40.7126],
     },
+    departAtTime: '07:45',
     arriveByTime: '08:45',
     acceptedModes: ['path', 'ferry'],
     preferences: {

@@ -23,6 +23,7 @@ export function VerdictCard({ verdict, targetArrivalTime, onSelectRoute }: Verdi
   const isComfortable = verdict.state === 'comfortable';
   const isTight = verdict.state === 'tight';
   const isReroute = verdict.state === 'reroute';
+  const isFeasible = verdict.isFeasible !== false && verdict.primaryRoute.isFeasible !== false;
 
   const badgeConfig = {
     comfortable: {
@@ -83,7 +84,7 @@ export function VerdictCard({ verdict, targetArrivalTime, onSelectRoute }: Verdi
               {firstLeg?.fromName || 'Origin'}
             </p>
             <p className="text-xs font-bold text-zinc-900">{formatTime12(verdict.leaveByTime)}</p>
-            <p className="text-[10px] text-zinc-500">Recommended</p>
+            <p className="text-[10px] text-zinc-500">Selected departure</p>
           </div>
 
           {/* Connecting line with travel time & countdown */}
@@ -155,6 +156,17 @@ export function VerdictCard({ verdict, targetArrivalTime, onSelectRoute }: Verdi
       </div>
 
       {/* Agent Rationale Box */}
+      <div className={`rounded-xl border p-4 ${isFeasible ? 'border-emerald-200 bg-emerald-50/70' : 'border-red-200 bg-red-50/70'}`}>
+        <div className={`text-xs font-bold uppercase tracking-wider ${isFeasible ? 'text-emerald-800' : 'text-red-800'}`}>
+          {isFeasible ? 'Arrival target is possible' : 'Arrival target is not possible'}
+        </div>
+        <p className={`mt-1 text-sm leading-relaxed ${isFeasible ? 'text-emerald-900' : 'text-red-900'}`}>
+          {verdict.feasibilityReason ?? verdict.primaryRoute.feasibilityReason ?? (isFeasible
+            ? 'The selected departure can reach the requested arrival time.'
+            : 'The selected departure cannot reach the requested arrival time.')}
+        </p>
+      </div>
+
       <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 uppercase tracking-wider mb-1.5">
           <Sparkles className="h-3.5 w-3.5 text-zinc-700" />
@@ -163,6 +175,9 @@ export function VerdictCard({ verdict, targetArrivalTime, onSelectRoute }: Verdi
         <p className="text-sm text-zinc-700 leading-relaxed font-normal">
           &ldquo;{verdict.reason}&rdquo;
         </p>
+        {verdict.modelUsed && (
+          <p className="mt-2 text-[10px] font-medium text-zinc-500">Reasoning source: {verdict.modelUsed}</p>
+        )}
       </div>
 
       {/* Plan B Alternative Box */}

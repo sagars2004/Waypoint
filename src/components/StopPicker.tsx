@@ -11,6 +11,7 @@ interface StopPickerProps {
   label: string;
   value: StopValue;
   onChange: (stop: TransitStop) => void;
+  error?: string;
 }
 
 const FILTERS: { value: 'all' | TransitMode; label: string }[] = [
@@ -27,7 +28,7 @@ function modeIcon(mode: TransitMode) {
   return <Train className="h-3.5 w-3.5" />;
 }
 
-export function StopPicker({ label, value, onChange }: StopPickerProps) {
+export function StopPicker({ label, value, onChange, error }: StopPickerProps) {
   const [query, setQuery] = useState(value.name);
   const [filter, setFilter] = useState<'all' | TransitMode>('all');
   const [isOpen, setIsOpen] = useState(false);
@@ -40,6 +41,7 @@ export function StopPicker({ label, value, onChange }: StopPickerProps) {
       return matchesMode && (!normalized || haystack.includes(normalized));
     }).slice(0, 8);
   }, [filter, query]);
+  const showResults = isOpen;
 
   const selectStop = (stop: TransitStop) => {
     setQuery(stop.name);
@@ -58,11 +60,13 @@ export function StopPicker({ label, value, onChange }: StopPickerProps) {
           onFocus={() => setIsOpen(true)}
           onChange={(event) => { setQuery(event.target.value); setIsOpen(true); }}
           placeholder="Search a station, stop, or agency"
-          className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-9 pr-3 py-2 text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
+          className={`w-full bg-zinc-50 border rounded-xl pl-9 pr-3 py-2 text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 ${error ? 'border-red-300 focus:ring-red-500' : 'border-zinc-200'}`}
         />
       </div>
-      {isOpen && (
-        <div className="absolute z-30 mt-1 w-full rounded-xl border border-zinc-200 bg-white p-2 shadow-lg">
+      {error && <p className="mt-1 text-[11px] font-medium text-red-600">{error}</p>}
+      {showResults && <button type="button" aria-label="Close stop search" className="fixed inset-0 z-20 cursor-default" onClick={() => setIsOpen(false)} />}
+      {showResults && (
+        <div className="absolute z-50 mt-1 w-full rounded-xl border border-zinc-200 bg-white p-2 shadow-lg">
           <div className="flex gap-1 overflow-x-auto pb-2 no-scrollbar">
             {FILTERS.map((item) => (
               <button
@@ -98,7 +102,6 @@ export function StopPicker({ label, value, onChange }: StopPickerProps) {
           </div>
         </div>
       )}
-      {isOpen && <button type="button" aria-label="Close stop search" className="fixed inset-0 z-20 cursor-default" onClick={() => setIsOpen(false)} />}
     </div>
   );
 }

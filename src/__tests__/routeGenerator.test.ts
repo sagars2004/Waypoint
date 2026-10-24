@@ -86,4 +86,34 @@ describe('RouteGenerator & RiskScorer (Phase 3)', () => {
     expect(result.leaveByTime).toBe('08:20');
     expect(result.totalLeadMinutes).toBe(40);
   });
+
+  it('uses the selected station agency for LIRR-to-LIRR routes', () => {
+    const normalSnapshot = feedManager.getSnapshot('normal');
+    const lirrProfile = {
+      ...profile,
+      id: 'custom-lirr',
+      origin: { name: 'Jamaica Station', stopId: 'lirr-jamaica', agency: 'LIRR', mode: 'rail' as const, coordinates: [-73.8089, 40.7003] as [number, number] },
+      destination: { name: 'Atlantic Terminal', stopId: 'lirr-atlantic', agency: 'LIRR', mode: 'rail' as const, coordinates: [-73.9772, 40.6844] as [number, number] },
+    };
+
+    const candidates = RouteGenerator.generateCandidates(lirrProfile, normalSnapshot);
+    expect(candidates[0].legs[0].line).toContain('LIRR');
+    expect(candidates[0].legs[0].line).not.toContain('PATH');
+  });
+
+  it('models a cross-agency trip as ordered legs with a protected transfer', () => {
+    const normalSnapshot = feedManager.getSnapshot('normal');
+    const multimodalProfile = {
+      ...profile,
+      id: 'custom-path-subway',
+      origin: { name: 'Exchange Place', stopId: 'exchange-place', agency: 'PATH', mode: 'path' as const, coordinates: [-74.0336, 40.7168] as [number, number] },
+      destination: { name: 'Times Sq–42 St', stopId: 'times-square-subway', agency: 'MTA Subway', mode: 'rail' as const, coordinates: [-73.9870, 40.7553] as [number, number] },
+    };
+
+    const candidates = RouteGenerator.generateCandidates(multimodalProfile, normalSnapshot);
+    expect(candidates[0].legs.length).toBeGreaterThanOrEqual(3);
+    expect(candidates[0].transfersCount).toBe(1);
+    expect(candidates[0].legs[0].line).toContain('PATH');
+    expect(candidates[0].legs.at(-1)?.line).toContain('MTA Subway');
+  });
 });

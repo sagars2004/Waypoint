@@ -13,10 +13,13 @@ import { formatTime12 } from '@/lib/time';
 export interface LeadAgentVerdictInput {
   origin: string;
   destination: string;
+  departAtTime: string;
   arriveByTime: string;
   candidates: RouteCandidate[];
   alerts: TransitAlert[];
   feedStatuses: FeedSourceStatus[];
+  weather?: string;
+  traffic?: string;
   baseVerdictState: VerdictState;
   baseConfidence: ConfidenceLevel;
 }
@@ -48,23 +51,34 @@ function deterministicReason(
   input: LeadAgentVerdictInput,
   primaryCandidate: RouteCandidate
 ): string {
+  if (primaryCandidate.isFeasible === false) {
+    return `The requested departure at ${formatTime12(input.departAtTime)} is not feasible: ${primaryCandidate.feasibilityReason ?? `this route arrives at ${formatTime12(primaryCandidate.arrivalTime)}, after the ${formatTime12(input.arriveByTime)} target.`} Leave by ${formatTime12(primaryCandidate.departureTime)} or choose a later arrival target.`;
+  }
+  const feasibility = `Leaving at ${formatTime12(input.departAtTime)} is feasible and arrives by ${formatTime12(primaryCandidate.arrivalTime)}, before the ${formatTime12(input.arriveByTime)} target.`;
   if (input.baseVerdictState === 'reroute') {
-    return `Primary line suspended due to track/power emergency. Reroute immediately to ${primaryCandidate.name} at ${formatTime12(primaryCandidate.departureTime)}.`;
+    return `${feasibility} Primary line suspended due to track/power emergency; use ${primaryCandidate.name} at ${formatTime12(primaryCandidate.departureTime)}.`;
   }
   if (input.baseVerdictState === 'tight') {
-    return `Corridor signal delays are present. Leave by ${formatTime12(primaryCandidate.departureTime)} to maintain an arrival safety margin.`;
+    return `${feasibility} Corridor signal delays are present, so the ${primaryCandidate.bufferMinutes}-minute safety margin is important.`;
   }
-  return `${primaryCandidate.name} is running smoothly with ${primaryCandidate.reliabilityRate}% historical reliability. Allocated buffer of ${primaryCandidate.bufferMinutes} minutes ensures comfortable on-time arrival.`;
+  return `${feasibility} ${primaryCandidate.name} is running smoothly with ${primaryCandidate.reliabilityRate}% historical reliability and a ${primaryCandidate.bufferMinutes}-minute safety margin.`;
 }
 
 function normalizeTime(time: string): string {
-  const [hours, minutes] = time.trim().split(':').map(Number);
-  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return time;
+  const match = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return time;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const suffix = match[3]?.toUpperCase();
+  if (suffix === 'PM' && hours < 12) hours += 12;
+  if (suffix === 'AM' && hours === 12) hours = 0;
+  if (hours > 23 || minutes > 59) return time;
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
 function hasGroundedTimes(reason: string, input: LeadAgentVerdictInput): boolean {
   const allowedTimes = new Set([
+    normalizeTime(input.departAtTime),
     normalizeTime(input.arriveByTime),
     ...input.candidates.flatMap((candidate) => [
       normalizeTime(candidate.departureTime),
@@ -77,7 +91,7 @@ function hasGroundedTimes(reason: string, input: LeadAgentVerdictInput): boolean
   ]);
   const citedTimes = reason.match(/\b\d{1,2}:\d{2}\s?(?:AM|PM)?\b/gi) || [];
 
-  return citedTimes.every((time) => allowedTimes.has(normalizeTime(time.slice(0, 5))));
+  return citedTimes.every((time) => allowedTimes.has(normalizeTime(time)));
 }
 
 export class LeadAgent {
@@ -117,6 +131,7 @@ export class LeadAgent {
       tags: ['waypoint', 'verdict', input.baseVerdictState],
       inputs: {
         corridor: `${input.origin} to ${input.destination}`,
+        departAtTime: input.departAtTime,
         arriveByTime: input.arriveByTime,
         primaryRoute: primaryCandidate.id,
         candidateCount: input.candidates.length,
@@ -126,6 +141,8 @@ export class LeadAgent {
           status: status.status,
           ageSeconds: status.lastAgeSeconds,
         })),
+        weather: input.weather,
+        traffic: input.traffic,
       },
     });
 
@@ -189,13 +206,14 @@ export class LeadAgent {
 
     // System prompt enforcing strict anti-hallucination rules (PRD principle: never invent departures)
     const systemPrompt = `You are the lead transit reasoning agent for Waypoint, powered by NVIDIA Nemotron on Nebius Token Factory.
-Your job is to reason over deterministic transit candidates and telemetry to produce a crisp, 1-2 sentence leave-by rationale for the commuter.
+Your job is to reason over deterministic transit candidates and telemetry to produce a crisp, 1-2 sentence departure-verdict rationale for the commuter.
 
 CRITICAL RULES:
 1. You may ONLY cite departure times, duration, buffer minutes, and costs provided in the candidate data. NEVER invent departure times.
 2. Emphasize risk, certainty, and safety buffers over simple arrival minutes.
-3. If an alert or suspension is present, explicitly state why the user is rerouted or why departure must be earlier.
-4. Output strict JSON matching this schema:
+3. Explicitly confirm whether the requested departure can meet the requested arrival time. If not, say so and cite the safe leave-by time from the data.
+4. If an alert or suspension is present, explicitly state why the user is rerouted or why departure must be earlier.
+5. Output strict JSON matching this schema:
 {
   "state": "comfortable" | "tight" | "reroute",
   "confidence": "high" | "medium" | "low",
@@ -204,6 +222,7 @@ CRITICAL RULES:
 
     const userPrompt = JSON.stringify({
       corridor: `${input.origin} to ${input.destination}`,
+      requestedDeparture: formatTime12(input.departAtTime),
       targetArrival: formatTime12(input.arriveByTime),
       recommendedPrimaryOption: {
         name: primaryCandidate.name,
@@ -211,6 +230,9 @@ CRITICAL RULES:
         duration: `${primaryCandidate.totalDurationMinutes} mins`,
         bufferMargin: `+${primaryCandidate.bufferMinutes} mins`,
         reliability: `${primaryCandidate.reliabilityRate}%`,
+        arrivalTime: formatTime12(primaryCandidate.arrivalTime),
+        isFeasible: primaryCandidate.isFeasible,
+        feasibilityReason: primaryCandidate.feasibilityReason,
       },
       planBAlternative: input.candidates[1] ? {
         name: input.candidates[1].name,
@@ -218,6 +240,8 @@ CRITICAL RULES:
         duration: `${input.candidates[1].totalDurationMinutes} mins`,
       } : null,
       activeAlerts: input.alerts.map((a) => `${a.agency} - ${a.title}: ${a.description}`),
+      weather: input.weather ?? 'Not available',
+      traffic: input.traffic ?? 'Not available',
       baseAssessedState: input.baseVerdictState,
       feedFreshness: input.feedStatuses.map((s) => `${s.source}: ${s.status} (${s.lastUpdated})`),
     }, null, 2);

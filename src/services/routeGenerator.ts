@@ -1,6 +1,7 @@
 import { 
   CommuteProfile, 
   RouteCandidate, 
+  RouteLeg,
   FeedSnapshot, 
 } from '@/types/schemas';
 import { RiskScorer } from './riskScorer';
@@ -17,6 +18,47 @@ function formatMinutes(value: number): string {
 
 function addMinutes(value: string, amount: number): string {
   return formatMinutes(timeToMinutes(value) + amount);
+}
+
+function normalizeAgency(agency?: string) {
+  return (agency ?? '').trim().toLowerCase();
+}
+
+function serviceLabel(mode: CommuteProfile['acceptedModes'][number], agency?: string) {
+  if (mode === 'path') return 'PATH';
+  if (mode === 'ferry') return agency || 'Ferry';
+  if (mode === 'bus') return agency || 'Transit Bus';
+  if (mode === 'driving') return 'Driving';
+  return agency || 'Rail';
+}
+
+function colorForMode(mode: CommuteProfile['acceptedModes'][number]) {
+  return {
+    path: '#0284c7',
+    rail: '#e11d48',
+    ferry: '#0d9488',
+    bus: '#8b5cf6',
+    driving: '#f97316',
+  }[mode];
+}
+
+function fareForMode(mode: CommuteProfile['acceptedModes'][number]) {
+  if (mode === 'ferry') return 8;
+  if (mode === 'rail' || mode === 'path') return 2.75;
+  if (mode === 'driving') return 25;
+  return 3.5;
+}
+
+function chooseTransferStation(profile: CommuteProfile, originService: string, destinationService: string) {
+  if (originService === 'LIRR' && destinationService === 'MTA Subway') return 'Atlantic Terminal';
+  if (destinationService === 'LIRR') return 'Jamaica Station';
+  if (originService === 'PATH' && destinationService === 'MTA Subway') return '33 St–Herald Sq';
+  if (originService === 'NJ Transit' && destinationService === 'MTA Subway') return 'NY Penn Station';
+  return `${profile.origin.name} connection`;
+}
+
+function buildLeg(leg: RouteLeg): RouteLeg {
+  return leg;
 }
 
 export class RouteGenerator {
@@ -73,25 +115,37 @@ export class RouteGenerator {
         bufferMinutes
       );
 
-      const scheduleOffset = timeToMinutes(leaveByTime) - timeToMinutes(cand.departureTime);
+      // The user-selected departure is the actual planning time. If an older
+      // saved profile has no departure time, preserve the previous arrive-by
+      // behavior by falling back to the computed safe leave-by time.
+      const requestedDeparture = profile.departAtTime || leaveByTime;
+      const scheduleOffset = timeToMinutes(requestedDeparture) - timeToMinutes(cand.departureTime);
       const legs = cand.legs.map((leg) => ({
         ...leg,
         departureTime: addMinutes(leg.departureTime, scheduleOffset),
         arrivalTime: addMinutes(leg.arrivalTime, scheduleOffset),
       }));
 
+      const arrivalTime = addMinutes(requestedDeparture, cand.totalDurationMinutes);
+      const isFeasible = timeToMinutes(arrivalTime) <= timeToMinutes(profile.arriveByTime);
+
       return {
         ...cand,
-        departureTime: leaveByTime,
-        arrivalTime: addMinutes(leaveByTime, cand.totalDurationMinutes),
+        departureTime: requestedDeparture,
+        arrivalTime,
         legs,
         bufferMinutes,
         riskScore,
+        isFeasible,
+        feasibilityReason: isFeasible
+          ? `Leaving at ${requestedDeparture} arrives by ${arrivalTime}, before the ${profile.arriveByTime} target.`
+          : `Leaving at ${requestedDeparture} arrives at ${arrivalTime}, after the ${profile.arriveByTime} target. Leave by ${leaveByTime} to make the target.`,
       };
     });
 
     // Sort by risk score ascending (safest first), but penalize suspended lines to the end
     return scoredCandidates.sort((a, b) => {
+      if (a.isFeasible !== b.isFeasible) return a.isFeasible ? -1 : 1;
       const aSuspended = a.legs.some((l) => l.delayMinutes >= 999);
       const bSuspended = b.legs.some((l) => l.delayMinutes >= 999);
       if (aSuspended && !bSuspended) return 1;
@@ -146,45 +200,110 @@ export class RouteGenerator {
       Math.cos(toRadians(origin[1])) * Math.cos(toRadians(destination[1])) * Math.sin(lngDistance / 2) ** 2
     ));
     const baseDuration = Math.max(8, Math.round((distanceKm / 30) * 60 + 6));
-    const modes: CommuteProfile['acceptedModes'] = profile.acceptedModes.filter((mode) => mode !== 'driving').slice(0, 3);
-    if (modes.length === 0) modes.push('rail');
-    const modeNames: Record<string, string> = {
-      path: 'PATH',
-      rail: profile.origin.agency || 'Rail',
-      bus: profile.origin.agency || 'Bus',
-      ferry: 'Ferry',
-    };
+    const originMode = profile.origin.mode ?? profile.acceptedModes.find((mode) => mode !== 'driving') ?? 'rail';
+    const destinationMode = profile.destination.mode ?? originMode;
+    const originService = serviceLabel(originMode, profile.origin.agency);
+    const destinationService = serviceLabel(destinationMode, profile.destination.agency);
+    const sameService = originMode === destinationMode && normalizeAgency(profile.origin.agency) === normalizeAgency(profile.destination.agency);
+    const originReliability = snapshot.reliabilityOtp[profile.origin.stopId ?? 'custom'] ?? 90;
+    const destinationReliability = snapshot.reliabilityOtp[profile.destination.stopId ?? 'custom'] ?? 88;
 
-    return modes.map((mode, index) => {
-      const duration = baseDuration + index * 4;
-      const reliability = snapshot.reliabilityOtp[profile.origin.stopId ?? 'custom'] ?? Math.max(78, 93 - index * 5);
-      const line = `${modeNames[mode] ?? mode} · ${profile.origin.name} → ${profile.destination.name}`;
-      return {
-        id: `custom-${mode}-${index}`,
-        name: `${modeNames[mode] ?? mode} from ${profile.origin.name}`,
+    // A station's selected agency/mode is authoritative. This prevents a LIRR → LIRR
+    // journey from being mislabeled PATH simply because PATH is first in acceptedModes.
+    if (sameService) {
+      const directLine = `${originService} · ${profile.origin.name} → ${profile.destination.name}`;
+      return [{
+        id: `custom-direct-${originMode}`,
+        name: `${originService} direct`,
         summary: `${profile.origin.name} → ${profile.destination.name}`,
         departureTime: '08:00',
         arrivalTime: '08:00',
-        totalDurationMinutes: duration,
-        transfersCount: index > 0 ? 1 : 0,
-        estimatedCost: mode === 'ferry' ? 8 : mode === 'rail' || mode === 'path' ? 2.75 : 3.5,
-        reliabilityRate: reliability,
-        legs: [{
-          id: `custom-leg-${mode}-${index}`,
-          mode,
-          line,
-          lineColor: mode === 'ferry' ? '#0d9488' : mode === 'bus' ? '#8b5cf6' : mode === 'path' ? '#0284c7' : '#e11d48',
+        totalDurationMinutes: baseDuration,
+        transfersCount: 0,
+        estimatedCost: fareForMode(originMode),
+        reliabilityRate: originReliability,
+        legs: [buildLeg({
+          id: `custom-direct-leg-${originMode}`,
+          mode: originMode,
+          line: directLine,
+          lineColor: colorForMode(originMode),
           fromName: profile.origin.name,
           toName: profile.destination.name,
           departureTime: '08:00',
-          arrivalTime: '08:00',
-          durationMinutes: duration,
+          arrivalTime: addMinutes('08:00', baseDuration),
+          durationMinutes: baseDuration,
           delayMinutes: 0,
-          statusText: 'Estimated from selected stops',
+          statusText: `${originService} schedule estimate from selected stops`,
           coordinates: [origin, destination],
-        }],
-      };
-    });
+        })],
+      }];
+    }
+
+    const firstDuration = Math.max(5, Math.round(baseDuration * 0.55));
+    const transferBuffer = 5;
+    const secondDuration = Math.max(5, baseDuration - firstDuration);
+    const transferName = chooseTransferStation(profile, originService, destinationService);
+    const transferCoordinate: [number, number] = [
+      (origin[0] + destination[0]) / 2,
+      (origin[1] + destination[1]) / 2,
+    ];
+    const secondDeparture = addMinutes('08:00', firstDuration + transferBuffer);
+    const transferRoute = {
+      id: `custom-transfer-${originMode}-${destinationMode}`,
+      name: `${originService} → ${destinationService}`,
+      summary: `${profile.origin.name} → ${transferName} → ${profile.destination.name}`,
+      departureTime: '08:00',
+      arrivalTime: addMinutes(secondDeparture, secondDuration),
+      totalDurationMinutes: firstDuration + transferBuffer + secondDuration,
+      transfersCount: 1,
+      estimatedCost: fareForMode(originMode) + (originMode === destinationMode ? 0 : fareForMode(destinationMode)),
+      reliabilityRate: Math.round((originReliability + destinationReliability) / 2),
+      legs: [
+        buildLeg({
+          id: `custom-transfer-leg-1-${originMode}`,
+          mode: originMode,
+          line: originService,
+          lineColor: colorForMode(originMode),
+          fromName: profile.origin.name,
+          toName: transferName,
+          departureTime: '08:00',
+          arrivalTime: addMinutes('08:00', firstDuration),
+          durationMinutes: firstDuration,
+          delayMinutes: 0,
+          statusText: `${originService} leg · estimated from selected stops`,
+          coordinates: [origin, transferCoordinate],
+        }),
+        buildLeg({
+          id: `custom-transfer-walk-${originMode}-${destinationMode}`,
+          mode: 'bus',
+          line: 'Transfer / Walk',
+          lineColor: '#94a3b8',
+          fromName: transferName,
+          toName: `${transferName} connection`,
+          departureTime: addMinutes('08:00', firstDuration),
+          arrivalTime: secondDeparture,
+          durationMinutes: transferBuffer,
+          delayMinutes: 0,
+          statusText: 'Protected transfer buffer',
+        }),
+        buildLeg({
+          id: `custom-transfer-leg-2-${destinationMode}`,
+          mode: destinationMode,
+          line: destinationService,
+          lineColor: colorForMode(destinationMode),
+          fromName: transferName,
+          toName: profile.destination.name,
+          departureTime: secondDeparture,
+          arrivalTime: addMinutes(secondDeparture, secondDuration),
+          durationMinutes: secondDuration,
+          delayMinutes: 0,
+          statusText: `${destinationService} leg · estimated from selected stops`,
+          coordinates: [transferCoordinate, destination],
+        }),
+      ],
+    };
+
+    return [transferRoute];
   }
 
   private static buildHobokenMidtownCandidates(

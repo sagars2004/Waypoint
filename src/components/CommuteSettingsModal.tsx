@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Check, SlidersHorizontal, Train, Ship, Bus, Car, Clock, ShieldAlert } from 'lucide-react';
+import { X, Check, SlidersHorizontal, Train, Ship, Bus, Car, ShieldAlert } from 'lucide-react';
 import { CommuteProfile, TransitMode } from '@/types/commute';
 
 interface CommuteSettingsModalProps {
@@ -57,22 +57,6 @@ export function CommuteSettingsModal({
         </div>
 
         <div className="space-y-4 py-4 text-xs">
-          {/* Arrive-by time */}
-          <div>
-            <label className="text-zinc-600 font-semibold block mb-1 flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5 text-zinc-700" />
-              Target Arrive-By Time
-            </label>
-            <input
-              type="time"
-              value={formData.arriveByTime}
-              onChange={(e) =>
-                setFormData({ ...formData, arriveByTime: e.target.value })
-              }
-              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
-            />
-          </div>
-
           {/* Accepted Modes */}
           <div>
             <label className="text-zinc-600 font-semibold block mb-2">Accepted Modes</label>

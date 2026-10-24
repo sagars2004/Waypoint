@@ -99,7 +99,9 @@ function routeHeadwayMinutes(route: RouteCandidate): number {
 function upcomingDepartures(route: RouteCandidate, now: Date): { label: string; route: RouteCandidate }[] {
   const headway = routeHeadwayMinutes(route);
   const baseMinutes = clockMinutes(route.departureTime);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  // Round up to the next minute so an option that is already leaving this
+  // minute is never presented as an upcoming departure.
+  const nowMinutes = now.getHours() * 60 + now.getMinutes() + (now.getSeconds() > 0 ? 1 : 0);
   let nextMinutes = baseMinutes;
   while (nextMinutes < nowMinutes) nextMinutes += headway;
 
@@ -163,6 +165,11 @@ export function DepartureTimeline({
 
   const { display: countdownDisplay, urgent, passed } = formatCountdown(secondsUntilDeparture);
   const verdictCls = VERDICT_CLASSES[verdictState];
+  const scheduleAnchor = selectedRoute.id === primaryRoute.id
+    ? primaryRoute
+    : planBRoute?.id === selectedRoute.id
+      ? planBRoute
+      : primaryRoute;
 
   const getModeIcon = (mode: string) => {
     switch (mode) {
@@ -242,10 +249,10 @@ export function DepartureTimeline({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-bold text-blue-950">Upcoming {selectedRoute.name} departures</p>
-              <p className="text-[10px] text-blue-700">Based on the selected route&apos;s typical {routeHeadwayMinutes(selectedRoute)}-minute headway. Current time: {currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>
+            <p className="text-[10px] text-blue-700">Based on the selected route&apos;s typical {routeHeadwayMinutes(scheduleAnchor)}-minute headway. Current time: {currentTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</p>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {upcomingDepartures(selectedRoute, currentTime).map((option) => (
+              {upcomingDepartures(scheduleAnchor, currentTime).map((option) => (
                 <button
                   key={option.label}
                   type="button"

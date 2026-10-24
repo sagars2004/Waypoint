@@ -1,4 +1,5 @@
 import { TransitMode } from '@/types/commute';
+import { MTA_SUBWAY_STOPS } from '@/data/mtaSubwayStops';
 
 export interface TransitStop {
   id: string;
@@ -18,6 +19,11 @@ export const TRANSIT_STOPS: TransitStop[] = [
   { id: 'grove-street', name: 'Grove Street', agency: 'PATH', mode: 'path', coordinates: [-74.0436, 40.7193], aliases: ['grove', 'jersey city'] },
   { id: '33rd-street-path', name: '33rd Street PATH', agency: 'PATH', mode: 'path', coordinates: [-73.9880, 40.7505], aliases: ['33rd path', 'midtown'] },
   { id: 'world-trade-center', name: 'World Trade Center', agency: 'PATH', mode: 'path', coordinates: [-74.0090, 40.7126], aliases: ['wtc', 'oculus', 'lower manhattan'] },
+  { id: 'newport-path', name: 'Newport', agency: 'PATH', mode: 'path', coordinates: [-74.0326, 40.7267], aliases: ['newport', 'newport path', 'jersey city'] },
+  { id: 'christopher-st-path', name: 'Christopher St', agency: 'PATH', mode: 'path', coordinates: [-74.0029, 40.7334], aliases: ['christopher street', 'christopher path', 'greenwich village'] },
+  { id: '9th-st-path', name: '9th St', agency: 'PATH', mode: 'path', coordinates: [-74.0085, 40.7342], aliases: ['9th street', '9 street path', 'west village'] },
+  { id: '14th-st-path', name: '14th St', agency: 'PATH', mode: 'path', coordinates: [-74.0007, 40.7376], aliases: ['14th street', '14 street path', 'chelsea'] },
+  { id: '23rd-st-path', name: '23rd St', agency: 'PATH', mode: 'path', coordinates: [-73.9981, 40.7428], aliases: ['23rd street', '23 street path', 'chelsea'] },
   { id: 'newark-penn', name: 'Newark Penn Station', agency: 'NJ Transit', mode: 'rail', coordinates: [-74.1649, 40.7347], aliases: ['newark penn', 'newark'] },
   { id: 'secaucus-junction', name: 'Secaucus Junction', agency: 'NJ Transit', mode: 'rail', coordinates: [-74.0750, 40.7600], aliases: ['secaucus', 'junction'] },
   { id: 'ny-penn', name: 'Moynihan Train Hall / NY Penn', agency: 'Amtrak', mode: 'rail', coordinates: [-73.9934, 40.7505], aliases: ['penn', 'moynihan', 'amtrak'] },
@@ -33,6 +39,7 @@ export const TRANSIT_STOPS: TransitStop[] = [
   { id: 'midtown-39th-ferry', name: 'W 39th St Ferry Terminal', agency: 'NY Waterway', mode: 'ferry', coordinates: [-74.0042, 40.7573], aliases: ['39th ferry', 'midtown ferry'] },
   { id: 'paulus-hook-ferry', name: 'Paulus Hook Ferry', agency: 'NY Waterway', mode: 'ferry', coordinates: [-74.0340, 40.7152], aliases: ['paulus hook', 'ferry'] },
   { id: 'brookfield-ferry', name: 'Brookfield Place Ferry', agency: 'NY Waterway', mode: 'ferry', coordinates: [-74.0157, 40.7148], aliases: ['brookfield', 'battery park ferry'] },
+  ...MTA_SUBWAY_STOPS,
 ];
 
 export function getTransitStop(id?: string): TransitStop | undefined {

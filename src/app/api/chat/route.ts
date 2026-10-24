@@ -103,7 +103,9 @@ Ground your response strictly in the following ${snapshot.source === 'REPLAY_FIX
 CURRENT TELEMETRY DATA:
 - Corridor: ${profile.origin.name} to ${profile.destination.name}
 - Target Arrival: ${formatTime12(profile.arriveByTime)}
+- Requested Departure: ${formatTime12(profile.departAtTime)}
 - Primary Option: ${primary.name} (Depart: ${formatTime12(primary.departureTime)}, Travel: ${primary.totalDurationMinutes}m, Buffer: +${primary.bufferMinutes}m, OTP: ${primary.reliabilityRate}%, Fare: $${primary.estimatedCost.toFixed(2)})
+- Arrival Feasibility: ${primary.isFeasible === false ? 'Not feasible at the requested departure' : 'Feasible at the requested departure'}${primary.feasibilityReason ? ` (${primary.feasibilityReason})` : ''}
 - Plan B Option: ${planB ? `${planB.name} (Depart: ${formatTime12(planB.departureTime)}, Travel: ${planB.totalDurationMinutes}m, Fare: $${planB.estimatedCost.toFixed(2)})` : 'None'}
 - Active Incidents: ${snapshot.alerts.length > 0 ? snapshot.alerts.map((a) => a.title).join(', ') : 'None'}
 - Weather: ${snapshot.weather ? `${snapshot.weather.temperatureF}°F, ${snapshot.weather.condition}, wind ${snapshot.weather.windSpeedMph}mph` : 'Normal'}

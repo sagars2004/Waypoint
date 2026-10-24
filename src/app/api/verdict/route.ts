@@ -99,16 +99,25 @@ export async function POST(request: Request) {
     const baseConfidence = RiskScorer.evaluateConfidence(feedStatuses, primaryRoute);
 
     // 4. Calculate countdown minutes from reference time or now
-    const countdownMinutes = RiskScorer.computeCountdown(primaryRoute.departureTime, '08:00');
+    const countdownMinutes = RiskScorer.computeCountdown(primaryRoute.departureTime, profile.departAtTime);
 
     // 5. Lead Agent (Nemotron on Nebius Token Factory) evaluates rationale
     const agentResult = await leadAgent.evaluateVerdict({
       origin: profile.origin.name,
       destination: profile.destination.name,
+      departAtTime: profile.departAtTime,
       arriveByTime: profile.arriveByTime,
       candidates,
       alerts: snapshot.alerts,
       feedStatuses,
+      weather: snapshot.weather
+        ? `${snapshot.weather.temperatureF}°F, ${snapshot.weather.condition}, wind ${snapshot.weather.windSpeedMph}mph`
+        : 'Not available',
+      traffic: snapshot.trafficTunnels
+        ? Object.values(snapshot.trafficTunnels)
+          .map((crossing) => `${crossing.crossing}: ${crossing.travelTimeMinutes}m (${crossing.delayVsTypicalMinutes}m vs typical)`)
+          .join('; ')
+        : 'Not available',
       baseVerdictState: baseState,
       baseConfidence: baseConfidence,
     });
@@ -126,6 +135,11 @@ export async function POST(request: Request) {
       state: agentResult.state,
       confidence: agentResult.confidence,
       leaveByTime: primaryRoute.departureTime,
+      requestedDepartureTime: profile.departAtTime,
+      targetArrivalTime: profile.arriveByTime,
+      isFeasible: primaryRoute.isFeasible ?? true,
+      feasibilityReason: primaryRoute.feasibilityReason,
+      modelUsed: agentResult.modelUsed,
       countdownMinutes,
       reason: agentResult.reason,
       primaryRoute,
@@ -145,6 +159,12 @@ export async function POST(request: Request) {
       verdict: validatedResponse,
       modelUsed: agentResult.modelUsed,
       mode: isLiveMode ? 'live' : 'replay',
+      integrations: {
+        nebius: Boolean(process.env.NEBIUS_API_KEY),
+        tavily: isLiveMode && Boolean(process.env.TAVILY_API_KEY),
+        tendem: Boolean(process.env.TENDEM_API_KEY),
+        langsmith: Boolean(process.env.LANGSMITH_API_KEY),
+      },
       escalation,
     });
   } catch (error) {

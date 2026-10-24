@@ -91,6 +91,10 @@ export class RiskScorer {
       return 'reroute';
     }
 
+    if (primary.isFeasible === false) {
+      return 'tight';
+    }
+
     const hasSignificantDelay = 
       snapshot.scenario === 'delay' ||
       allCandidates.some((c) => c.legs.some((l) => l.delayMinutes >= 6));
